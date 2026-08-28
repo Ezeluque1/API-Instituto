@@ -1,0 +1,213 @@
+// Schema de Prisma 6 - https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Rol {
+  ADMIN
+  USUARIO
+}
+
+enum Modalidad {
+  PRESENCIAL
+  VIRTUAL
+  HIBRIDA
+}
+
+enum TipoPublicacion {
+  NOTICIA
+  EVENTO
+}
+
+enum EstadoMensaje {
+  NO_LEIDO
+  LEIDO
+  RESPONDIDO
+}
+
+// ============================================================
+// SEDES
+// ============================================================
+
+model Sede {
+  id         String   @id @default(cuid())
+  nombre     String
+  ciudad     String
+  provincia  String
+  direccion  String?
+  telefono   String?
+  email      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  carreras   CarreraSede[]
+
+  // Índices para búsqueda por ciudad/provincia cuando hay muchas sedes
+  @@index([ciudad])
+  @@index([provincia])
+  @@index([nombre])
+}
+
+// ============================================================
+// CARRERAS
+// ============================================================
+
+model Carrera {
+  id             String    @id @default(cuid())
+  nombre         String
+  slug           String    @unique
+  descripcion    String?
+  duracionAnios  Int?
+  tituloOtorgado String?
+  modalidad      Modalidad
+
+  // Soft delete / ocultar sin borrar (dar de baja)
+  activa         Boolean   @default(true)
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sedes          CarreraSede[]
+
+  // Índices para listado, filtro y búsqueda por nombre/palabra clave
+  @@index([nombre])
+  @@index([modalidad])
+  @@index([activa])
+}
+
+// Tabla intermedia: una carrera puede dictarse en varias sedes
+// y una sede puede dictar varias carreras
+model CarreraSede {
+  carreraId String
+  sedeId    String
+
+  carrera   Carrera @relation(fields: [carreraId], references: [id], onDelete: Cascade)
+  sede      Sede    @relation(fields: [sedeId], references: [id], onDelete: Cascade)
+
+  @@id([carreraId, sedeId])
+  @@index([sedeId])
+  @@index([carreraId])
+}
+
+// ============================================================
+// USUARIOS
+// ============================================================
+
+model Usuario {
+  id            String    @id @default(cuid())
+  nombre        String
+  apellido      String
+  email         String    @unique
+  dni           String    @unique
+  passwordHash  String
+  rol           Rol       @default(USUARIO)
+
+  // Soft delete / desactivar sin borrar
+  activo        Boolean   @default(true)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  resetTokens   PasswordResetToken[]
+  publicaciones Publicacion[]
+  refreshTokens RefreshToken[]
+
+  // Búsqueda admin por nombre, email o DNI
+  @@index([nombre, apellido])
+  @@index([email])
+  @@index([dni])
+}
+
+// Tokens para recuperar/resetear contraseña
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usado     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+// Refresh tokens de sesión, permite invalidar en logout
+model RefreshToken {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revocado   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([usuarioId])
+}
+
+// ============================================================
+// NOTICIAS Y EVENTOS
+// ============================================================
+
+model Publicacion {
+  id          String          @id @default(cuid())
+  titulo      String
+  slug        String          @unique
+  resumen     String?
+  contenido   String
+  tipo        TipoPublicacion
+  imagenUrl   String?
+
+  // Solo aplica a eventos (fecha del evento en sí)
+  fechaEvento DateTime?
+
+  destacada   Boolean         @default(false)
+
+  autorId     String?
+  autor       Usuario?        @relation(fields: [autorId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Filtro por tipo/fecha y búsqueda por título/palabra clave
+  @@index([tipo])
+  @@index([createdAt])
+  @@index([fechaEvento])
+  @@index([titulo])
+  @@index([destacada])
+}
+
+// ============================================================
+// CONTACTO
+// ============================================================
+
+model MensajeContacto {
+  id           String        @id @default(cuid())
+  nombre       String
+  email        String
+  telefono     String?
+  asunto       String?
+  mensaje      String
+
+  estado       EstadoMensaje @default(NO_LEIDO)
+
+  // Respuesta / derivación (opcional, si integran email)
+  respuesta    String?
+  respondidoAt DateTime?
+
+  createdAt    DateTime      @default(now())
+
+  // Búsqueda admin por nombre o email del remitente
+  @@index([nombre])
+  @@index([email])
+  @@index([estado])
+}
