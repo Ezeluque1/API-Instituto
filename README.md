@@ -2,33 +2,112 @@
 
 Backend REST con **Node.js + Express 5 + Prisma 6 + PostgreSQL**, en ESM y organizado por capas.
 
+Produccion: https://api-instituto.onrender.com/api/health
+
 ## Requisitos
 
-- Node.js 22+
-- PostgreSQL 16/17
+| | Version | Como verificar |
+|---|---|---|
+| Node.js | 22 o superior | `node -v` |
+| npm | 10 o superior | `npm -v` |
+| PostgreSQL | 16 o 17, corriendo en local | `pg_isready` |
+| Git | cualquiera | `git --version` |
 
-## Puesta en marcha
+## Puesta en marcha (primera vez)
+
+### 1. Clonar e instalar
 
 ```bash
-# 1. Dependencias
+git clone https://github.com/Ezeluque1/API-Instituto.git
+cd API-Instituto
 npm install
+```
 
-# 2. Crear la base de datos
-#    (si `psql` no esta en el PATH, usar la ruta completa de la instalacion)
+### 2. Crear la base de datos local
+
+Cada uno trabaja contra su propia base local, **no** contra la de produccion.
+
+```bash
+# macOS / Linux
+createdb instituto
+
+# Windows (si `psql` no esta en el PATH, usar la ruta completa de la instalacion)
 "C:\Program Files\PostgreSQL\17\bin\createdb.exe" -U postgres instituto
+```
 
-# 3. Configurar el entorno
+Si `createdb` te pide password, es la que pusiste al instalar PostgreSQL.
+
+### 3. Configurar el entorno
+
+```bash
 cp .env.example .env
-#    y completar DATABASE_URL con tu usuario/password
+```
 
-# 4. Crear las tablas y generar el cliente de Prisma
-npx prisma migrate dev --name init
+Y editar el `.env` recien creado:
 
-# 5. Levantar en desarrollo (recarga automatica)
+- **`DATABASE_URL`**: reemplazar `TU_PASSWORD` por la password de tu PostgreSQL
+  local. Si el usuario no es `postgres` o el puerto no es el 5432, ajustarlos
+  tambien.
+- **`JWT_SECRET`**: generar uno propio (tiene que tener 16 caracteres como
+  minimo o la app no arranca):
+
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+  ```
+
+El `.env` esta en el `.gitignore`: **nunca** se commitea. Si agregas una
+variable nueva, sumala tambien a `.env.example` (sin el valor real) para que al
+resto no le falte.
+
+### 4. Crear las tablas
+
+```bash
+npx prisma migrate dev
+```
+
+Aplica las migraciones que ya estan en `prisma/migrations/` y genera el cliente
+de Prisma. **No** le pases `--name`: las migraciones ya existen, ese flag es
+solo para cuando creas una nueva.
+
+### 5. Levantar
+
+```bash
 npm run dev
 ```
 
-Comprobacion rapida: `GET http://localhost:3000/api/health`.
+Y comprobar en otra terminal:
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+Tiene que responder `{"status":"ok","database":"connected"}`. Si dice
+`"database":"disconnected"`, el `DATABASE_URL` esta mal (ver Problemas comunes).
+
+## Trabajo diario
+
+**Despues de cada `git pull`**, si vinieron cambios en `prisma/`:
+
+```bash
+npm install          # por si entraron dependencias nuevas
+npx prisma migrate dev
+```
+
+**Si tocas `prisma/schema.prisma`**, generar la migracion y commitearla:
+
+```bash
+npx prisma migrate dev --name descripcion_del_cambio
+```
+
+Eso crea una carpeta nueva en `prisma/migrations/`. **Hay que commitearla**: es
+lo que Render aplica en produccion durante el build. Si la olvidas, el deploy
+levanta con el schema viejo y las queries fallan.
+
+**Para mirar los datos** sin escribir SQL:
+
+```bash
+npm run prisma:studio
+```
 
 ## Scripts
 
@@ -36,7 +115,8 @@ Comprobacion rapida: `GET http://localhost:3000/api/health`.
 |---|---|
 | `npm run dev` | Levanta con recarga automatica (`node --watch`, sin nodemon) |
 | `npm start` | Levanta en modo produccion |
-| `npm run prisma:migrate` | Crea y aplica una migracion |
+| `npm run prisma:migrate` | Crea y aplica una migracion (desarrollo) |
+| `npm run prisma:deploy` | Aplica migraciones existentes sin crear ninguna (produccion) |
 | `npm run prisma:generate` | Regenera el cliente de Prisma |
 | `npm run prisma:studio` | Abre el explorador visual de la base |
 
@@ -169,6 +249,52 @@ router.use('/sedes', sedeRoutes);
 Si ademas cambias `prisma/schema.prisma`, correr `npm run prisma:migrate` para
 generar la migracion y commitear la carpeta `prisma/migrations/`: es lo que
 Render aplica en produccion.
+
+## Problemas comunes
+
+**`Authentication failed against database server`**
+La password del `DATABASE_URL` no coincide con la de tu PostgreSQL local. Es el
+error mas frecuente al arrancar: revisa que hayas reemplazado `TU_PASSWORD` en
+el `.env`. Si la password tiene caracteres raros (`@`, `:`, `/`, `#`), hay que
+escaparlos en URL: una `@` se escribe `%40`.
+
+**`Can't reach database server at localhost:5432`**
+PostgreSQL no esta corriendo. En Windows se levanta desde Servicios
+(`services.msc` → `postgresql-x64-17`); en macOS con `brew services start
+postgresql@17`; en Linux con `sudo systemctl start postgresql`.
+
+**`database "instituto" does not exist`**
+Falto el paso 2 de la puesta en marcha: crear la base con `createdb`.
+
+**`Error en las variables de entorno (.env)`**
+La validacion de `src/config/env.js` corto el arranque y lista abajo que
+variable falta o esta mal. Lo mas comun es un `JWT_SECRET` de menos de 16
+caracteres. Compara tu `.env` contra `.env.example`.
+
+**`EADDRINUSE: address already in use :::3000`**
+Hay otro proceso en el puerto 3000, casi siempre un `npm run dev` que quedo
+colgado. Cambia el `PORT` en tu `.env` o cerra el proceso viejo.
+
+**Cambiaste el `schema.prisma` y el codigo no ve el modelo nuevo**
+El cliente de Prisma es codigo generado, no se actualiza solo: correr
+`npx prisma migrate dev` (o `npm run prisma:generate` si no hubo cambios de
+tablas). El editor puede necesitar recargar la ventana para tomar los tipos.
+
+**`The migration ... was modified after it was applied`**
+Alguien edito un archivo de `prisma/migrations/` que ya estaba aplicado. Las
+migraciones son inmutables: para corregir algo se crea una migracion nueva. Si
+es tu base local y no te importan los datos, `npx prisma migrate reset` la
+recrea de cero.
+
+**Queres mirar la base de produccion**
+Usar la **External** Database URL de Render (la Internal solo funciona dentro de
+Render):
+
+```bash
+DATABASE_URL="<External Database URL>" npx prisma studio
+```
+
+En PowerShell: `$env:DATABASE_URL="<External>"; npx prisma studio`.
 
 ## Deploy (Render)
 
