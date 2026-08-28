@@ -1,0 +1,232 @@
+# ============================================================================
+# Documentacion de la API - OpenAPI 3.1
+#
+# TODA la documentacion se escribe en ESTE archivo, nunca en los routers.
+# Los routers quedan solo con logica de ruteo.
+#
+# Se ve en:  http://localhost:3000/api/docs                (local)
+#            https://api-instituto.onrender.com/api/docs   (produccion)
+#
+# Al agregar un endpoint: sumar su tag en `tags` y su ruta en `paths`.
+# Abajo de `paths` hay un ejemplo completo comentado para copiar y pegar.
+# ============================================================================
+
+openapi: 3.1.0
+
+info:
+  title: API Instituto
+  version: 1.0.0
+  description: |
+    API REST del Instituto.
+
+    Las respuestas de error son iguales en todos los endpoints porque salen del
+    manejador centralizado (`src/middlewares/error.middleware.js`). Estan
+    definidas una sola vez en `components/responses`: no las redefinas, usalas
+    con `$ref`.
+
+servers:
+  - url: https://api-instituto.onrender.com/api
+    description: Produccion
+  - url: http://localhost:3000/api
+    description: Desarrollo local
+
+# Un tag por recurso. Agrupa los endpoints en la UI y define el orden en que
+# aparecen. Ejemplo:
+#
+#   - name: Sedes
+#     description: Sedes donde se dictan las carreras
+tags: []
+
+# Las rutas se escriben SIN el prefijo `/api`: ya esta incluido en `servers`.
+# Es decir, el endpoint GET /api/sedes se documenta aca como `/sedes`.
+paths: {}
+# ---------------------------------------------------------------------------
+# EJEMPLO PARA COPIAR
+# (borrar el `{}` de la linea de arriba y descomentar desde `/sedes`)
+#
+#  /sedes:
+#    get:
+#      tags: [Sedes]
+#      summary: Lista todas las sedes
+#      responses:
+#        "200":
+#          description: Listado de sedes
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  success: { type: boolean }
+#                  data:
+#                    type: array
+#                    items: { $ref: "#/components/schemas/Sede" }
+#        "500": { $ref: "#/components/responses/InternalError" }
+#
+#    post:
+#      tags: [Sedes]
+#      summary: Crea una sede
+#      security:
+#        - bearerAuth: []
+#      requestBody:
+#        required: true
+#        content:
+#          application/json:
+#            schema: { $ref: "#/components/schemas/SedeInput" }
+#      responses:
+#        "201":
+#          description: Sede creada
+#          content:
+#            application/json:
+#              schema:
+#                type: object
+#                properties:
+#                  success: { type: boolean }
+#                  data: { $ref: "#/components/schemas/Sede" }
+#        "400": { $ref: "#/components/responses/BadRequest" }
+#        "401": { $ref: "#/components/responses/Unauthorized" }
+#        "403": { $ref: "#/components/responses/Forbidden" }
+#        "409": { $ref: "#/components/responses/Conflict" }
+#
+#  /sedes/{id}:
+#    get:
+#      tags: [Sedes]
+#      summary: Obtiene una sede por id
+#      parameters:
+#        - name: id
+#          in: path
+#          required: true
+#          schema: { type: string }
+#          description: cuid de la sede
+#      responses:
+#        "200":
+#          description: La sede pedida
+#        "404": { $ref: "#/components/responses/NotFound" }
+#
+# Y el schema de la entidad va en components/schemas, mas abajo:
+#
+#    Sede:
+#      type: object
+#      properties:
+#        id: { type: string }
+#        nombre: { type: string }
+#        ciudad: { type: string }
+# ---------------------------------------------------------------------------
+
+components:
+
+  securitySchemes:
+    # Es lo que valida `authenticate` en src/middlewares/auth.middleware.js.
+    # Para probar endpoints protegidos desde la UI: boton "Authorize" y pegar
+    # el token SIN el prefijo "Bearer " (la UI lo agrega sola).
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    # Los schemas de las entidades (Sede, Carrera, Usuario, Publicacion,
+    # MensajeContacto) van aca, uno por recurso, a medida que se implementan.
+
+    Error:
+      type: object
+      description: Forma de cualquier respuesta de error de la API.
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+          description: Descripcion del error, apta para mostrar al usuario.
+          examples: ["El registro solicitado no existe"]
+        details:
+          description: Informacion extra. Solo aparece en algunos errores.
+        stack:
+          type: string
+          description: >-
+            Traza del error. SOLO se incluye cuando NODE_ENV=development;
+            en produccion nunca se expone.
+
+    ValidationIssue:
+      type: object
+      description: Un campo que no paso la validacion de Zod.
+      required: [source, field, message]
+      properties:
+        source:
+          type: string
+          enum: [body, params, query]
+          description: En que parte del request estaba el campo.
+        field:
+          type: string
+          examples: ["email"]
+        message:
+          type: string
+          examples: ["Invalid email address"]
+
+    ValidationError:
+      type: object
+      description: >-
+        Error 400 devuelto por el middleware `validate()`. A diferencia del
+        resto, `details` trae la lista de campos que fallaron.
+      required: [success, message, details]
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+          examples: ["Datos de entrada invalidos"]
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationIssue"
+
+  responses:
+
+    # Respuestas comunes a todos los endpoints. Se referencian asi:
+    #   "404": { $ref: "#/components/responses/NotFound" }
+
+    BadRequest:
+      description: Los datos enviados no pasaron la validacion.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+
+    Unauthorized:
+      description: Falta el token, es invalido, expiro o la cuenta esta desactivada.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Forbidden:
+      description: Autenticado, pero el rol no alcanza para esta accion.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    NotFound:
+      description: El recurso no existe.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Conflict:
+      description: >-
+        Choca con un registro existente: campo unico duplicado (Prisma P2002) o
+        una relacion que impide la operacion (P2003).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    InternalError:
+      description: Error inesperado del servidor.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -109,6 +109,49 @@ levanta con el schema viejo y las queries fallan.
 npm run prisma:studio
 ```
 
+## Documentacion (Swagger)
+
+| | URL |
+|---|---|
+| Local | http://localhost:3000/api/docs |
+| Produccion | https://api-instituto.onrender.com/api/docs |
+| Spec crudo (para Postman) | `/api/docs.json` |
+
+**Toda la documentacion se escribe en `docs/openapi.yaml`**, nunca en los
+routers: asi los routers quedan solo con logica de ruteo. No hay que configurar
+nada, ya esta todo montado.
+
+La primera vez que abras los docs vas a ver **"No operations defined in spec!"**.
+No esta roto: `paths` arranca vacio a proposito y se va llenando a medida que se
+implementan endpoints. Dentro del YAML hay un ejemplo completo comentado con un
+CRUD de `Sede` para copiar y pegar.
+
+Lo que ya viene resuelto y **no hay que volver a escribir**:
+
+- `components/responses`: `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
+  `Conflict` e `InternalError`. Son las respuestas del `errorHandler`
+  centralizado, iguales en todos los endpoints. Se referencian asi:
+
+  ```yaml
+  responses:
+    "404": { $ref: "#/components/responses/NotFound" }
+  ```
+
+- `components/securitySchemes/bearerAuth`: para marcar un endpoint como
+  protegido alcanza con `security: [{ bearerAuth: [] }]`. En la UI, el boton
+  **Authorize** pide el token (sin el prefijo `Bearer`, lo agrega sola).
+
+Un par de detalles:
+
+- Las rutas se escriben **sin** el prefijo `/api`, porque ya esta en `servers`:
+  el endpoint `GET /api/sedes` se documenta como `/sedes`.
+- Si el YAML queda mal escrito, **el server no arranca** y te dice el archivo y
+  la linea del error. Es a proposito: mejor enterarse al arrancar que servir
+  documentacion rota.
+- El selector de **Servers** apunta a `localhost` cuando corres en local y a
+  produccion cuando entras por la URL de Render, para que "Try it out" no te
+  escriba en la base equivocada. Igual conviene mirarlo antes de ejecutar algo.
+
 ## Scripts
 
 | Script | Que hace |
@@ -143,10 +186,17 @@ src/
 ├── routes/        Definen endpoints y encadenan middlewares
 ├── services/      Logica de negocio + consultas Prisma
 ├── middlewares/   Errores, validacion, autenticacion
-├── config/        Variables de entorno y cliente de Prisma
+├── config/        Variables de entorno, cliente de Prisma y carga del spec
 ├── utils/         ApiError, JWT, hashing de passwords
 ├── app.js         Arma la app de Express y la exporta
 └── server.js      Hace el listen() y el apagado ordenado
+
+docs/
+└── openapi.yaml   Documentacion de la API (se sirve en /api/docs)
+
+prisma/
+├── schema.prisma  Modelos de datos
+└── migrations/    Migraciones versionadas (commitear siempre)
 ```
 
 Los **modelos de datos** viven en `prisma/schema.prisma` (esa es la fuente de
@@ -245,6 +295,10 @@ export default router;
 import sedeRoutes from './sede.routes.js';
 router.use('/sedes', sedeRoutes);
 ```
+
+**6. `docs/openapi.yaml`** — documentar los endpoints nuevos (ver la seccion
+Documentacion, mas arriba). Un endpoint sin documentar es un endpoint que el
+resto del equipo no sabe que existe.
 
 Si ademas cambias `prisma/schema.prisma`, correr `npm run prisma:migrate` para
 generar la migracion y commitear la carpeta `prisma/migrations/`: es lo que

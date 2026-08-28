@@ -2,8 +2,10 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
 
 import { env } from './config/env.js';
+import { openapiSpec } from './config/swagger.js';
 import routes from './routes/index.js';
 import { notFoundHandler, errorHandler } from './middlewares/error.middleware.js';
 
@@ -21,6 +23,17 @@ app.use(morgan(env.isDev ? 'dev' : 'combined'));
 // Parseo del body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Documentacion. La fuente es docs/openapi.yaml, los routers quedan limpios.
+// Se monta antes que las rutas para que /api/docs no caiga en el router de /api.
+app.get('/api/docs.json', (_req, res) => res.json(openapiSpec));
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(openapiSpec, {
+    customSiteTitle: 'API Instituto - Docs',
+  }),
+);
 
 // Rutas de la API
 app.use('/api', routes);
