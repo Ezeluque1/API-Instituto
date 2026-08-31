@@ -19,10 +19,21 @@ info:
   description: |
     API REST del Instituto.
 
-    Las respuestas de error son iguales en todos los endpoints porque salen del
-    manejador centralizado (`src/middlewares/error.middleware.js`). Estan
-    definidas una sola vez en `components/responses`: no las redefinas, usalas
-    con `$ref`.
+    ### Forma de las respuestas
+
+    **En exito el body es el recurso pelado**, sin ningun sobre: un objeto en
+    las respuestas de un recurso y un array en los listados. Un listado vacio
+    devuelve `200 []`, nunca un 404. Un `DELETE` devuelve `204` sin body.
+
+    **En error** el body es un objeto `{ success: false, message, details? }`,
+    igual para todos los endpoints porque sale del manejador centralizado
+    (`src/middlewares/error.middleware.js`).
+
+    Son formas distintas a proposito: para saber si algo salio bien mirá el
+    **status HTTP**, no una propiedad del body.
+
+    Las respuestas de error estan definidas una sola vez en
+    `components/responses`: no las redefinas, usalas con `$ref`.
 
 servers:
   - url: https://api-instituto.onrender.com/api
@@ -50,16 +61,12 @@ paths: {}
 #      summary: Lista todas las sedes
 #      responses:
 #        "200":
-#          description: Listado de sedes
+#          description: Listado de sedes (array vacio si no hay ninguna)
 #          content:
 #            application/json:
 #              schema:
-#                type: object
-#                properties:
-#                  success: { type: boolean }
-#                  data:
-#                    type: array
-#                    items: { $ref: "#/components/schemas/Sede" }
+#                type: array
+#                items: { $ref: "#/components/schemas/Sede" }
 #        "500": { $ref: "#/components/responses/InternalError" }
 #
 #    post:
@@ -75,13 +82,13 @@ paths: {}
 #      responses:
 #        "201":
 #          description: Sede creada
+#          headers:
+#            Location:
+#              description: URL de la sede recien creada
+#              schema: { type: string }
 #          content:
 #            application/json:
-#              schema:
-#                type: object
-#                properties:
-#                  success: { type: boolean }
-#                  data: { $ref: "#/components/schemas/Sede" }
+#              schema: { $ref: "#/components/schemas/Sede" }
 #        "400": { $ref: "#/components/responses/BadRequest" }
 #        "401": { $ref: "#/components/responses/Unauthorized" }
 #        "403": { $ref: "#/components/responses/Forbidden" }
@@ -100,6 +107,19 @@ paths: {}
 #      responses:
 #        "200":
 #          description: La sede pedida
+#          content:
+#            application/json:
+#              schema: { $ref: "#/components/schemas/Sede" }
+#        "404": { $ref: "#/components/responses/NotFound" }
+#
+#    delete:
+#      tags: [Sedes]
+#      summary: Elimina una sede
+#      security:
+#        - bearerAuth: []
+#      responses:
+#        "204":
+#          description: Eliminada. Sin body.
 #        "404": { $ref: "#/components/responses/NotFound" }
 #
 # Y el schema de la entidad va en components/schemas, mas abajo:

@@ -7,6 +7,7 @@ import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env.js';
 import { openapiSpec } from './config/swagger.js';
 import routes from './routes/index.js';
+import { responseHelpers } from './middlewares/response.middleware.js';
 import { notFoundHandler, errorHandler } from './middlewares/error.middleware.js';
 
 const app = express();
@@ -23,6 +24,10 @@ app.use(morgan(env.isDev ? 'dev' : 'combined'));
 // Parseo del body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Atajos res.ok() / res.created() / res.noContent() para que las respuestas
+// exitosas salgan todas iguales. Tiene que ir antes de las rutas.
+app.use(responseHelpers);
 
 // Documentacion. La fuente es docs/openapi.yaml, los routers quedan limpios.
 // Se monta antes que las rutas para que /api/docs no caiga en el router de /api.
