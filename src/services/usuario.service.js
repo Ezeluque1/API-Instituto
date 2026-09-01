@@ -350,52 +350,96 @@ export async function resetPassword(token, password) {
   };
 }
 
-export async function listarUsuarios() {
-  return prisma.usuario.findMany({
+export async function obtenerPorId(usuarioId) {
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: usuarioId },
     select: usuarioPublicSelect,
-    orderBy: [
-      { apellido: 'asc' },
-      { nombre: 'asc' },
-    ],
   });
+
+  if (!usuario) {
+    throw ApiError.notFound('Usuario no encontrado');
+  }
+
+  return usuario;
 }
 
-export async function buscarUsuarios(buscar) {
-  return prisma.usuario.findMany({
-    where: {
-      OR: [
-        {
-          nombre: {
-            contains: buscar,
-            mode: 'insensitive',
-          },
-        },
-        {
-          apellido: {
-            contains: buscar,
-            mode: 'insensitive',
-          },
-        },
-        {
-          email: {
-            contains: buscar,
-            mode: 'insensitive',
-          },
-        },
-        {
-          dni: {
-            contains: buscar,
-            mode: 'insensitive',
-          },
-        },
+export async function listarUsuarios(opciones = {}) {
+  const { page = 1, limit = 10, rol, activo } = opciones;
+
+  const where = {};
+  if (rol) where.rol = rol;
+  if (typeof activo === 'boolean') where.activo = activo;
+
+  const [total, usuarios] = await prisma.$transaction([
+    prisma.usuario.count({ where }),
+    prisma.usuario.findMany({
+      where,
+      select: usuarioPublicSelect,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [
+        { apellido: 'asc' },
+        { nombre: 'asc' },
       ],
-    },
-    select: usuarioPublicSelect,
-    orderBy: [
-      { apellido: 'asc' },
-      { nombre: 'asc' },
-    ],
-  });
+    }),
+  ]);
+
+  return {
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit) || 1,
+    data: usuarios,
+  };
+}
+
+export async function buscarUsuarios(buscar, opciones = {}) {
+  const { page = 1, limit = 10, rol, activo } = opciones;
+
+  const conditions = [];
+
+  if (buscar) {
+    conditions.push({
+      OR: [
+        { nombre: { contains: buscar, mode: 'insensitive' } },
+        { apellido: { contains: buscar, mode: 'insensitive' } },
+        { email: { contains: buscar, mode: 'insensitive' } },
+        { dni: { contains: buscar, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  if (rol) {
+    conditions.push({ rol });
+  }
+
+  if (typeof activo === 'boolean') {
+    conditions.push({ activo });
+  }
+
+  const where = conditions.length > 0 ? { AND: conditions } : {};
+
+  const [total, usuarios] = await prisma.$transaction([
+    prisma.usuario.count({ where }),
+    prisma.usuario.findMany({
+      where,
+      select: usuarioPublicSelect,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [
+        { apellido: 'asc' },
+        { nombre: 'asc' },
+      ],
+    }),
+  ]);
+
+  return {
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit) || 1,
+    data: usuarios,
+  };
 }
 
 export async function cambiarRol(usuarioId, rol, adminId) {
@@ -475,6 +519,28 @@ export async function desactivarUsuario(usuarioId, adminId) {
     where: { id: usuarioId },
     data: {
       activo: false,
+    },
+    select: usuarioPublicSelect,
+  });
+}
+
+export async function reactivarUsuario(usuarioId) {
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: usuarioId },
+  });
+
+  if (!usuario) {
+    throw ApiError.notFound('Usuario no encontrado');
+  }
+
+  if (usuario.activo) {
+    throw ApiError.badRequest('El usuario ya está activo');
+  }
+
+  return prisma.usuario.update({
+    where: { id: usuarioId },
+    data: {
+      activo: true,
     },
     select: usuarioPublicSelect,
   });

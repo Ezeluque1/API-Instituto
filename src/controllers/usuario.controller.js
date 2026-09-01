@@ -107,23 +107,34 @@ export async function resetPassword(req, res) {
   });
 }
 
-export async function listarUsuarios(_req, res) {
-  const usuarios = await usuarioService.listarUsuarios();
+export async function obtenerPorId(req, res) {
+  const usuario = await usuarioService.obtenerPorId(req.validated.params.id);
 
   res.json({
     success: true,
-    data: usuarios,
+    data: usuario,
+  });
+}
+
+export async function listarUsuarios(req, res) {
+  const resultado = await usuarioService.listarUsuarios(
+    req.validated?.query || {},
+  );
+
+  res.json({
+    success: true,
+    ...resultado,
   });
 }
 
 export async function buscarUsuarios(req, res) {
-  const { buscar } = req.validated.query;
+  const { buscar, ...opciones } = req.validated.query;
 
-  const usuarios = await usuarioService.buscarUsuarios(buscar);
+  const resultado = await usuarioService.buscarUsuarios(buscar, opciones);
 
   res.json({
     success: true,
-    data: usuarios,
+    ...resultado,
   });
 }
 
@@ -144,6 +155,17 @@ export async function desactivarUsuario(req, res) {
   const usuario = await usuarioService.desactivarUsuario(
     req.validated.params.id,
     req.user.id,
+  );
+
+  res.json({
+    success: true,
+    data: usuario,
+  });
+}
+
+export async function reactivarUsuario(req, res) {
+  const usuario = await usuarioService.reactivarUsuario(
+    req.validated.params.id,
   );
 
   res.json({

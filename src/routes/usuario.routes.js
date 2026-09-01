@@ -11,6 +11,7 @@ import {
   refreshTokenSchema,
   actualizarPerfilSchema,
   cambiarPasswordSchema,
+  listarUsuariosQuerySchema,
   buscarUsuariosSchema,
   idParamSchema,
   cambiarRolSchema,
@@ -110,6 +111,7 @@ router.get(
   '/',
   authenticate,
   authorize('ADMIN'),
+  validate({ query: listarUsuariosQuerySchema }),
   controller.listarUsuarios,
 );
 
@@ -120,6 +122,17 @@ router.get(
   authorize('ADMIN'),
   validate({ query: buscarUsuariosSchema }),
   controller.buscarUsuarios,
+);
+
+// Obtener usuario por ID
+router.get(
+  '/:id',
+  authenticate,
+  authorize('ADMIN'),
+  validate({
+    params: idParamSchema,
+  }),
+  controller.obtenerPorId,
 );
 
 // Cambiar rol
@@ -143,6 +156,17 @@ router.patch(
     params: idParamSchema,
   }),
   controller.desactivarUsuario,
+);
+
+// Reactivar usuario
+router.patch(
+  '/:id/reactivar',
+  authenticate,
+  authorize('ADMIN'),
+  validate({
+    params: idParamSchema,
+  }),
+  controller.reactivarUsuario,
 );
 
 export default router;
