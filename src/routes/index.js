@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../config/prisma.js';
+import sedeRoutes from './sede.routes.js';
 
 const router = Router();
 
@@ -21,9 +22,8 @@ router.get('/health', async (_req, res) => {
   });
 });
 
-// Aca se montan los routers de cada recurso, por ejemplo:
-//
-//   import alumnoRoutes from './alumno.routes.js';
-//   router.use('/alumnos', alumnoRoutes);
+// Un router por recurso. Mirar sede.routes.js como referencia para los que
+// falten (carreras, publicaciones, contacto).
+router.use('/sedes', sedeRoutes);
 
 export default router;

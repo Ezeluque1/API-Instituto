@@ -52,6 +52,11 @@ model Sede {
 
   carreras   CarreraSede[]
 
+  // No puede haber dos sedes con el mismo nombre en la misma ciudad.
+  // Permite "Sede Centro" en Cordoba y en Rosario, pero no dos veces en una.
+  // Prisma tira P2002 al violarlo y el errorHandler lo devuelve como 409.
+  @@unique([nombre, ciudad])
+
   // Índices para búsqueda por ciudad/provincia cuando hay muchas sedes
   @@index([ciudad])
   @@index([provincia])

@@ -42,95 +42,71 @@ servers:
     description: Desarrollo local
 
 # Un tag por recurso. Agrupa los endpoints en la UI y define el orden en que
-# aparecen. Ejemplo:
-#
-#   - name: Sedes
-#     description: Sedes donde se dictan las carreras
-tags: []
+# aparecen.
+tags:
+  - name: Sedes
+    description: Sedes donde se dictan las carreras
 
 # Las rutas se escriben SIN el prefijo `/api`: ya esta incluido en `servers`.
 # Es decir, el endpoint GET /api/sedes se documenta aca como `/sedes`.
-paths: {}
-# ---------------------------------------------------------------------------
-# EJEMPLO PARA COPIAR
-# (borrar el `{}` de la linea de arriba y descomentar desde `/sedes`)
 #
-#  /sedes:
-#    get:
-#      tags: [Sedes]
-#      summary: Lista todas las sedes
-#      responses:
-#        "200":
-#          description: Listado de sedes (array vacio si no hay ninguna)
-#          content:
-#            application/json:
-#              schema:
-#                type: array
-#                items: { $ref: "#/components/schemas/Sede" }
-#        "500": { $ref: "#/components/responses/InternalError" }
-#
-#    post:
-#      tags: [Sedes]
-#      summary: Crea una sede
-#      security:
-#        - bearerAuth: []
-#      requestBody:
-#        required: true
-#        content:
-#          application/json:
-#            schema: { $ref: "#/components/schemas/SedeInput" }
-#      responses:
-#        "201":
-#          description: Sede creada
-#          headers:
-#            Location:
-#              description: URL de la sede recien creada
-#              schema: { type: string }
-#          content:
-#            application/json:
-#              schema: { $ref: "#/components/schemas/Sede" }
-#        "400": { $ref: "#/components/responses/BadRequest" }
-#        "401": { $ref: "#/components/responses/Unauthorized" }
-#        "403": { $ref: "#/components/responses/Forbidden" }
-#        "409": { $ref: "#/components/responses/Conflict" }
-#
-#  /sedes/{id}:
-#    get:
-#      tags: [Sedes]
-#      summary: Obtiene una sede por id
-#      parameters:
-#        - name: id
-#          in: path
-#          required: true
-#          schema: { type: string }
-#          description: cuid de la sede
-#      responses:
-#        "200":
-#          description: La sede pedida
-#          content:
-#            application/json:
-#              schema: { $ref: "#/components/schemas/Sede" }
-#        "404": { $ref: "#/components/responses/NotFound" }
-#
-#    delete:
-#      tags: [Sedes]
-#      summary: Elimina una sede
-#      security:
-#        - bearerAuth: []
-#      responses:
-#        "204":
-#          description: Eliminada. Sin body.
-#        "404": { $ref: "#/components/responses/NotFound" }
-#
-# Y el schema de la entidad va en components/schemas, mas abajo:
-#
-#    Sede:
-#      type: object
-#      properties:
-#        id: { type: string }
-#        nombre: { type: string }
-#        ciudad: { type: string }
-# ---------------------------------------------------------------------------
+# `/sedes` es la referencia a copiar para los recursos que falten.
+paths:
+
+  /sedes:
+    post:
+      tags: [Sedes]
+      summary: Crea una sede
+      description: |
+        No puede haber dos sedes con el mismo `nombre` en la misma `ciudad`.
+        Los textos se recortan (trim) antes de guardarse.
+
+        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
+        con rol ADMIN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SedeInput" }
+      responses:
+        "201":
+          description: Sede creada
+          headers:
+            Location:
+              description: URL de la sede recien creada
+              schema: { type: string }
+              example: /api/sedes/clx1a2b3c4d5e6f7g8h9i0j1
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: Ya existe una sede con ese nombre en esa ciudad.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /sedes/{id}:
+    get:
+      tags: [Sedes]
+      summary: Obtiene una sede por id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: La sede pedida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
 components:
 
@@ -145,8 +121,82 @@ components:
 
   schemas:
 
-    # Los schemas de las entidades (Sede, Carrera, Usuario, Publicacion,
-    # MensajeContacto) van aca, uno por recurso, a medida que se implementan.
+    # Un schema por entidad, a medida que se implementan. Convencion: `X` es
+    # lo que devuelve la API y `XInput` lo que se recibe en el body.
+
+    Sede:
+      type: object
+      description: Una sede del instituto.
+      required: [id, nombre, ciudad, provincia, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: cuid generado por la base.
+          examples: ["clx1a2b3c4d5e6f7g8h9i0j1"]
+        nombre:
+          type: string
+          examples: ["Sede Centro"]
+        ciudad:
+          type: string
+          examples: ["Cordoba"]
+        provincia:
+          type: string
+          examples: ["Cordoba"]
+        direccion:
+          type: [string, "null"]
+          examples: ["Av. Colon 1234"]
+        telefono:
+          type: [string, "null"]
+          examples: ["+54 351 4567890"]
+        email:
+          type: [string, "null"]
+          format: email
+          examples: ["centro@instituto.edu.ar"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SedeInput:
+      type: object
+      description: >-
+        Body para crear una sede. No acepta campos que no esten en esta lista:
+        si mandas uno de mas, la respuesta es un 400.
+      required: [nombre, ciudad, provincia]
+      additionalProperties: false
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          examples: ["Sede Centro"]
+        ciudad:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        provincia:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        direccion:
+          type: string
+          minLength: 1
+          maxLength: 200
+          examples: ["Av. Colon 1234"]
+        telefono:
+          type: string
+          minLength: 1
+          maxLength: 30
+          examples: ["+54 351 4567890"]
+        email:
+          type: string
+          format: email
+          maxLength: 120
+          examples: ["centro@instituto.edu.ar"]
 
     Error:
       type: object
