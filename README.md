@@ -109,6 +109,53 @@ levanta con el schema viejo y las queries fallan.
 npm run prisma:studio
 ```
 
+## Respuestas de la API
+
+Para que el front no tenga que adivinar, todas las respuestas siguen esta tabla:
+
+| Caso | Status | Body |
+|---|---|---|
+| `GET` de un recurso | 200 | el objeto |
+| `GET` de un listado | 200 | un array (`[]` si no hay nada, **nunca** 404) |
+| `POST` que crea | 201 | el objeto creado + header `Location` |
+| `PUT` / `PATCH` | 200 | el objeto actualizado |
+| `DELETE` | 204 | vacio, sin body |
+| Cualquier error | 4xx / 5xx | `{ success: false, message, details? }` |
+
+**En exito el body es el recurso pelado, sin sobre.** No hay `{ success: true,
+data: ... }`: si pediste una sede te llega la sede.
+
+Los controllers no arman esto a mano, usan los atajos que agrega
+`src/middlewares/response.middleware.js`:
+
+```js
+res.ok(sede);                              // 200 + el objeto
+res.ok(sedes);                             // 200 + el array (vacio incluido)
+res.created(sede, `/api/sedes/${sede.id}`); // 201 + header Location
+res.noContent();                           // 204 sin body
+```
+
+### Por que exito y error tienen formas distintas
+
+Es a proposito, no una inconsistencia que haya que "arreglar". El front decide
+por el **status HTTP**, no por una propiedad del body:
+
+```js
+const res = await fetch('/api/sedes');
+if (!res.ok) {
+  const { message } = await res.json();   // forma de error
+  throw new Error(message);
+}
+const sedes = await res.json();           // el recurso, directo
+```
+
+Dos detalles que evitan bugs del lado del front:
+
+- Un listado sin resultados devuelve `200 []`, no un 404. El 404 queda
+  reservado para cuando el recurso pedido no existe.
+- Un `204` no lleva body: llamar a `.json()` sobre esa respuesta explota. Hay
+  que chequear el status antes de parsear.
+
 ## Documentacion (Swagger)
 
 | | URL |
@@ -185,7 +232,7 @@ src/
 ├── models/        Schemas de Zod + `select` de Prisma reutilizables
 ├── routes/        Definen endpoints y encadenan middlewares
 ├── services/      Logica de negocio + consultas Prisma
-├── middlewares/   Errores, validacion, autenticacion
+├── middlewares/   Errores, validacion, autenticacion, respuestas
 ├── config/        Variables de entorno, cliente de Prisma y carga del spec
 ├── utils/         ApiError, JWT, hashing de passwords
 ├── app.js         Arma la app de Express y la exporta
@@ -258,11 +305,17 @@ export async function crear(datos) {
 import * as sedeService from '../services/sede.service.js';
 
 export async function listar(_req, res) {
-  res.json({ success: true, data: await sedeService.listar() });
+  res.ok(await sedeService.listar());
 }
 
 export async function crear(req, res) {
-  res.status(201).json({ success: true, data: await sedeService.crear(req.body) });
+  const sede = await sedeService.crear(req.body);
+  res.created(sede, `/api/sedes/${sede.id}`);
+}
+
+export async function eliminar(req, res) {
+  await sedeService.eliminar(req.params.id);
+  res.noContent();
 }
 ```
 
