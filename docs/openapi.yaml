@@ -129,6 +129,57 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+    patch:
+      tags: [Sedes]
+      summary: Modifica una sede
+      description: |
+        Actualizacion **parcial**: se manda solo lo que cambia. Hay que enviar
+        al menos un campo, un body vacio es un 400.
+
+        Los tres casos que conviene tener claros:
+
+        | Lo que mandas | Que pasa |
+        |---|---|
+        | omitis el campo | queda como estaba |
+        | `"telefono": null` | se borra el valor |
+        | `"telefono": ""` | **400** — para borrar se usa `null` |
+
+        `nombre`, `ciudad` y `provincia` son obligatorios en la base: no se
+        pueden poner en `null`, aunque si cambiar por otro valor.
+
+        Los textos se recortan (trim) antes de guardarse. La respuesta es la
+        sede sola, **sin** las carreras.
+
+        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
+        con rol ADMIN.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SedeUpdateInput" }
+      responses:
+        "200":
+          description: La sede ya modificada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >-
+            El cambio dejaria dos sedes con el mismo nombre en la misma ciudad.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
 components:
 
   securitySchemes:
@@ -217,6 +268,49 @@ components:
           type: string
           format: email
           maxLength: 120
+          examples: ["centro@instituto.edu.ar"]
+
+    SedeUpdateInput:
+      type: object
+      description: >-
+        Body del PATCH. Todos los campos son opcionales, pero hay que mandar al
+        menos uno. Los tres opcionales aceptan `null` para borrar el valor. No
+        acepta campos que no esten en esta lista.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          examples: ["Sede Centro II"]
+        ciudad:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        provincia:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        direccion:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 200
+          description: "`null` borra la direccion."
+          examples: ["Av. Colon 1234"]
+        telefono:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 30
+          description: "`null` borra el telefono."
+          examples: ["+54 351 4567890"]
+        email:
+          type: [string, "null"]
+          format: email
+          maxLength: 120
+          description: "`null` borra el email."
           examples: ["centro@instituto.edu.ar"]
 
     SedeDetalle:

@@ -2,7 +2,11 @@ import { Router } from 'express';
 
 import * as controller from '../controllers/sede.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
-import { crearSedeSchema, sedeIdParamSchema } from '../models/sede.model.js';
+import {
+  crearSedeSchema,
+  actualizarSedeSchema,
+  sedeIdParamSchema,
+} from '../models/sede.model.js';
 
 const router = Router();
 
@@ -15,5 +19,12 @@ router.get('/', controller.listar);
 router.post('/', validate({ body: crearSedeSchema }), controller.crear);
 
 router.get('/:id', validate({ params: sedeIdParamSchema }), controller.obtenerPorId);
+
+// Mismo TODO de auth que el POST.
+router.patch(
+  '/:id',
+  validate({ params: sedeIdParamSchema, body: actualizarSedeSchema }),
+  controller.actualizar,
+);
 
 export default router;

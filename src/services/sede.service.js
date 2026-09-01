@@ -51,3 +51,32 @@ export async function obtenerPorId(id) {
 
   return sede;
 }
+
+/**
+ * Modifica parcialmente una sede: solo los campos que vengan en `datos`.
+ * Un campo en `null` borra el valor (ver actualizarSedeSchema).
+ *
+ * Se hace el update directo, sin un findUnique previo para chequear que la
+ * sede exista: ese chequeo abriria una condicion de carrera y Prisma ya avisa
+ * con P2025. Solo se traduce ese codigo para que el mensaje del 404 sea el
+ * mismo que devuelve el GET, en vez del generico del errorHandler.
+ *
+ * El P2002 (nombre+ciudad duplicado) se deja pasar a proposito: el
+ * errorHandler ya lo convierte en 409.
+ *
+ * @throws {ApiError} 404 si no existe.
+ */
+export async function actualizar(id, datos) {
+  try {
+    return await prisma.sede.update({
+      where: { id },
+      data: datos,
+      select: sedePublicSelect,
+    });
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      throw ApiError.notFound('Sede no encontrada');
+    }
+    throw error;
+  }
+}

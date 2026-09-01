@@ -76,6 +76,36 @@ export const crearSedeSchema = z.strictObject({
 });
 
 /**
+ * Body del PATCH /sedes/:id. Actualizacion parcial: se manda solo lo que cambia.
+ *
+ * Contrato de los tres casos que se confunden siempre:
+ *   - omitir un campo  -> queda como estaba
+ *   - mandarlo en null -> se borra (solo los opcionales)
+ *   - mandarlo en ""   -> 400, para borrar se usa null
+ *
+ * El `.nullable()` va solo en los tres opcionales: nombre, ciudad y provincia
+ * son NOT NULL en la base, asi que mandarles null tiene que frenar aca y no
+ * llegar a Prisma.
+ *
+ * El `.partial()` conserva el modo estricto (un campo desconocido sigue dando
+ * 400) pero acepta `{}`, de ahi el refine: sin el, un PATCH vacio devolveria
+ * un 200 sin haber cambiado nada, que es mentirle al front.
+ */
+export const actualizarSedeSchema = z
+  .strictObject({
+    nombre: textoRequerido(120),
+    ciudad: textoRequerido(80),
+    provincia: textoRequerido(80),
+    direccion: textoRequerido(200).nullable(),
+    telefono: textoRequerido(30).nullable(),
+    email: z.email().max(120).nullable(),
+  })
+  .partial()
+  .refine((datos) => Object.keys(datos).length > 0, {
+    message: 'Hay que enviar al menos un campo para modificar',
+  });
+
+/**
  * Valida el :id de la URL. Los ids del schema son cuid, asi que un id mal
  * formado se corta con un 400 y nunca llega a consultar la base.
  */

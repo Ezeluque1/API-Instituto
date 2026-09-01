@@ -19,3 +19,8 @@ export async function crear(req, res) {
 export async function obtenerPorId(req, res) {
   res.ok(await sedeService.obtenerPorId(req.params.id));
 }
+
+/** PATCH /api/sedes/:id */
+export async function actualizar(req, res) {
+  res.ok(await sedeService.actualizar(req.params.id, req.body));
+}
