@@ -1,6 +1,6 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
-import { sedePublicSelect } from '../models/sede.model.js';
+import { sedePublicSelect, sedeDetalleSelect } from '../models/sede.model.js';
 
 /**
  * Crea una sede.
@@ -20,14 +20,29 @@ export async function crear(datos) {
 }
 
 /**
- * Busca una sede por id.
+ * Lista todas las sedes, ordenadas por nombre.
+ *
+ * No trae las carreras: son un dato del detalle, no de la grilla. Si no hay
+ * ninguna sede devuelve `[]`, nunca un 404.
+ */
+export async function listar() {
+  return prisma.sede.findMany({
+    select: sedePublicSelect,
+    orderBy: { nombre: 'asc' },
+  });
+}
+
+/**
+ * Busca una sede por id, con las carreras que se dictan en ella.
+ *
+ * Ver `sedeDetalleSelect` por la forma anidada de `carreras`.
  *
  * @throws {ApiError} 404 si no existe.
  */
 export async function obtenerPorId(id) {
   const sede = await prisma.sede.findUnique({
     where: { id },
-    select: sedePublicSelect,
+    select: sedeDetalleSelect,
   });
 
   if (!sede) {

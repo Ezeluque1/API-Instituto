@@ -54,6 +54,24 @@ tags:
 paths:
 
   /sedes:
+    get:
+      tags: [Sedes]
+      summary: Lista todas las sedes
+      description: |
+        Devuelve todas las sedes ordenadas por nombre. Si no hay ninguna
+        devuelve `[]`, nunca un 404.
+
+        **No incluye las carreras**: para eso esta `GET /sedes/{id}`.
+      responses:
+        "200":
+          description: Listado de sedes (array vacio si no hay ninguna)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Sede" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
     post:
       tags: [Sedes]
       summary: Crea una sede
@@ -90,7 +108,10 @@ paths:
   /sedes/{id}:
     get:
       tags: [Sedes]
-      summary: Obtiene una sede por id
+      summary: Obtiene una sede por id, con sus carreras
+      description: |
+        A diferencia del listado, el detalle incluye las carreras que se
+        dictan en la sede.
       parameters:
         - name: id
           in: path
@@ -100,10 +121,10 @@ paths:
           example: clx1a2b3c4d5e6f7g8h9i0j1
       responses:
         "200":
-          description: La sede pedida
+          description: La sede pedida, con sus carreras
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Sede" }
+              schema: { $ref: "#/components/schemas/SedeDetalle" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/InternalError" }
@@ -197,6 +218,64 @@ components:
           format: email
           maxLength: 120
           examples: ["centro@instituto.edu.ar"]
+
+    SedeDetalle:
+      description: |
+        Una sede con las carreras que se dictan en ella. Lo devuelve
+        `GET /sedes/{id}`.
+
+        Dos cosas a tener en cuenta:
+
+        - Cada elemento de `carreras` viene **envuelto** en un objeto
+          `{ carrera: ... }`. No es un array de carreras: es la tabla
+          intermedia de la relacion N:M. Del lado del front:
+          `sede.carreras.map(c => c.carrera)`.
+        - **Incluye las carreras dadas de baja**, marcadas con
+          `activa: false`. Filtrarlas es decision del front.
+      allOf:
+        - $ref: "#/components/schemas/Sede"
+        - type: object
+          required: [carreras]
+          properties:
+            carreras:
+              type: array
+              description: Ordenadas por nombre de la carrera.
+              items:
+                type: object
+                required: [carrera]
+                properties:
+                  carrera: { $ref: "#/components/schemas/CarreraResumen" }
+
+    CarreraResumen:
+      type: object
+      description: >-
+        Version reducida de una Carrera, para cuando viaja anidada dentro de
+        otro recurso. No trae `descripcion` ni los timestamps.
+      required: [id, nombre, slug, modalidad, activa]
+      properties:
+        id:
+          type: string
+          examples: ["clc1a2b3c4d5e6f7g8h9i0j1"]
+        nombre:
+          type: string
+          examples: ["Tecnicatura Superior en Programacion"]
+        slug:
+          type: string
+          examples: ["tecnicatura-superior-en-programacion"]
+        modalidad:
+          type: string
+          enum: [PRESENCIAL, VIRTUAL, HIBRIDA]
+        duracionAnios:
+          type: [integer, "null"]
+          examples: [3]
+        tituloOtorgado:
+          type: [string, "null"]
+          examples: ["Tecnico Superior en Programacion"]
+        activa:
+          type: boolean
+          description: >-
+            `false` significa que la carrera esta dada de baja. Viene igual en
+            la respuesta.
 
     Error:
       type: object

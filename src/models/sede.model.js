@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
 /**
- * Campos que la API expone de una Sede. Se deja afuera la relacion `carreras`:
- * si algun endpoint necesita traerlas, arma su propio select.
+ * Campos que la API expone de una Sede. Es lo que devuelven el POST y el
+ * listado: sin carreras, porque una grilla de sedes no las necesita y traerlas
+ * encarece bastante la consulta.
  */
 export const sedePublicSelect = {
   id: true,
@@ -14,6 +15,44 @@ export const sedePublicSelect = {
   email: true,
   createdAt: true,
   updatedAt: true,
+};
+
+/**
+ * Resumen de una Carrera, para cuando viaja anidada dentro de otro recurso.
+ *
+ * Se dejan afuera `descripcion` y los timestamps a proposito: son para el
+ * detalle de la carrera, no para una lista dentro de una sede.
+ */
+export const carreraResumenSelect = {
+  id: true,
+  nombre: true,
+  slug: true,
+  modalidad: true,
+  duracionAnios: true,
+  tituloOtorgado: true,
+  activa: true,
+};
+
+/**
+ * Sede con las carreras que se dictan en ella. Lo usa el GET /sedes/:id.
+ *
+ * OJO con la forma del resultado: `carreras` NO es un array de carreras, es un
+ * array de filas de la tabla intermedia CarreraSede, o sea
+ * `[{ carrera: {...} }, ...]`. Es deliberado, la relacion es N:M y se expone
+ * tal cual la devuelve Prisma. Si lo aplanas aca, rompes el contrato que el
+ * front ya tiene documentado en docs/openapi.yaml.
+ *
+ * Vienen tambien las carreras dadas de baja (`activa: false`); filtrarlas es
+ * decision del front.
+ */
+export const sedeDetalleSelect = {
+  ...sedePublicSelect,
+  carreras: {
+    select: { carrera: { select: carreraResumenSelect } },
+    // Sin esto el orden lo decide Postgres y puede cambiar entre requests,
+    // que en el front se ve como una lista que parpadea.
+    orderBy: { carrera: { nombre: 'asc' } },
+  },
 };
 
 /**
