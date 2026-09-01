@@ -399,191 +399,191 @@ components:
         details:
           type: array
           items:
-            $ref: #/components/schemas/ValidationIssue
+            $ref: "#/components/schemas/ValidationIssue"
 
-              Usuario:
-    type: object
-    properties:
-      id:
-        type: string
-        description: CUID del usuario
-      nombre:
-        type: string
-      apellido:
-        type: string
-      email:
-        type: string
-        format: email
-      dni:
-        type: string
-      rol:
-        type: string
-        enum: [ADMIN, USUARIO]
-      activo:
-        type: boolean
-      createdAt:
-        type: string
-        format: date-time
-      updatedAt:
-        type: string
-        format: date-time
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: string
+          description: CUID del usuario
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        dni:
+          type: string
+        rol:
+          type: string
+          enum: [ADMIN, USUARIO]
+        activo:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
-  CrearUsuarioInput:
-    type: object
-    required:
-      - nombre
-      - apellido
-      - email
-      - dni
-      - password
-    properties:
-      nombre:
-        type: string
-        example: Juan
-      apellido:
-        type: string
-        example: Perez
-      email:
-        type: string
-        format: email
-        example: juan.perez@test.com
-      dni:
-        type: string
-        example: 40123456
-      password:
-        type: string
-        format: password
-        minLength: 8
-        example: 12345678
+    CrearUsuarioInput:
+      type: object
+      required:
+        - nombre
+        - apellido
+        - email
+        - dni
+        - password
+      properties:
+        nombre:
+          type: string
+          example: Juan
+        apellido:
+          type: string
+          example: Perez
+        email:
+          type: string
+          format: email
+          example: juan.perez@test.com
+        dni:
+          type: string
+          example: 40123456
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: 12345678
 
-  LoginInput:
-    type: object
-    required:
-      - email
-      - password
-    properties:
-      email:
-        type: string
-        format: email
-        example: juan.perez@test.com
-      password:
-        type: string
-        format: password
-        example: 12345678
+    LoginInput:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: juan.perez@test.com
+        password:
+          type: string
+          format: password
+          example: 12345678
 
-  LoginResponse:
-    type: object
-    properties:
-      success:
-        type: boolean
-        example: true
-      data:
-        type: object
-        properties:
-          accessToken:
-            type: string
-          refreshToken:
-            type: string
-          usuario:
-            $ref: #/components/schemas/Usuario
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            usuario:
+              $ref: "#/components/schemas/Usuario"
 
-  LogoutInput:
-    type: object
-    required:
-      - refreshToken
-    properties:
-      refreshToken:
-        type: string
-        description: Refresh token de la sesión
+    LogoutInput:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: Refresh token de la sesión
 
-  RecuperarPasswordInput:
-    type: object
-    required:
-      - email
-    properties:
-      email:
-        type: string
-        format: email
-        example: juan.perez@test.com
+    RecuperarPasswordInput:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: juan.perez@test.com
 
-  RecuperarPasswordResponse:
-    type: object
-    properties:
-      success:
-        type: boolean
-        example: true
-      data:
-        type: object
-        properties:
-          message:
-            type: string
-            example: Token de recuperación generado
-          token:
-            type: string
+    RecuperarPasswordResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: Token de recuperación generado
+            token:
+              type: string
 
-  ResetPasswordInput:
-    type: object
-    required:
-      - token
-      - password
-    properties:
-      token:
-        type: string
-      password:
-        type: string
-        format: password
-        minLength: 8
+    ResetPasswordInput:
+      type: object
+      required:
+        - token
+        - password
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 8
 
-  ActualizarPerfilInput:
-    type: object
-    properties:
-      nombre:
-        type: string
-      apellido:
-        type: string
-      email:
-        type: string
-        format: email
-      dni:
-        type: string
+    ActualizarPerfilInput:
+      type: object
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        dni:
+          type: string
 
-  CambiarRolInput:
-    type: object
-    required:
-      - rol
-    properties:
-      rol:
-        type: string
-        enum: [ADMIN, USUARIO]
+    CambiarRolInput:
+      type: object
+      required:
+        - rol
+      properties:
+        rol:
+          type: string
+          enum: [ADMIN, USUARIO]
 
-  UsuarioResponse:
-    type: object
-    properties:
-      success:
-        type: boolean
-        example: true
-      data:
-        $ref: #/components/schemas/Usuario
+    UsuarioResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/Usuario"
 
-  UsuariosResponse:
-    type: object
-    properties:
-      success:
-        type: boolean
-        example: true
-      data:
-        type: array
-        items:
-          $ref: #/components/schemas/Usuario
+    UsuariosResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Usuario"
 
-  MessageResponse:
-    type: object
-    properties:
-      success:
-        type: boolean
-        example: true
-      message:
-        type: string
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
 
   responses:
 
@@ -595,28 +595,28 @@ components:
       content:
         application/json:
           schema:
-            $ref: #/components/schemas/ValidationError
+            $ref: "#/components/schemas/ValidationError"
 
     Unauthorized:
       description: Falta el token, es invalido, expiro o la cuenta esta desactivada.
       content:
         application/json:
           schema:
-            $ref: #/components/schemas/Error
+            $ref: "#/components/schemas/Error"
 
     Forbidden:
       description: Autenticado, pero el rol no alcanza para esta accion.
       content:
         application/json:
           schema:
-            $ref: #/components/schemas/Error
+            $ref: "#/components/schemas/Error"
 
     NotFound:
       description: El recurso no existe.
       content:
         application/json:
           schema:
-            $ref: #/components/schemas/Error
+            $ref: "#/components/schemas/Error"
 
     Conflict:
       description: >-
@@ -625,11 +625,11 @@ components:
       content:
         application/json:
           schema:
-            $ref: #/components/schemas/Error
+            $ref: "#/components/schemas/Error"
 
     InternalError:
       description: Error inesperado del servidor.
       content:
         application/json:
           schema:
-            $ref: #/components/schemas/Error
+            $ref: "#/components/schemas/Error"
