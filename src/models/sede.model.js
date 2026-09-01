@@ -13,6 +13,7 @@ export const sedePublicSelect = {
   direccion: true,
   telefono: true,
   email: true,
+  activa: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -73,6 +74,21 @@ export const crearSedeSchema = z.strictObject({
   direccion: textoRequerido(200).optional(),
   telefono: textoRequerido(30).optional(),
   email: z.email().max(120).optional(),
+});
+
+/**
+ * Query string de los GET de sedes.
+ *
+ * Se valida como enum de strings y NO con `z.coerce.boolean()`: `Boolean("false")`
+ * es `true`, asi que con coerce un `?incluirInactivas=false` traeria justamente
+ * las inactivas. Ademas, cualquier otro valor da 400 en vez de interpretarse
+ * en silencio.
+ */
+export const sedesQuerySchema = z.strictObject({
+  incluirInactivas: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 /**

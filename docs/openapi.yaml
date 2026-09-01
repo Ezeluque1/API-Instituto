@@ -62,6 +62,20 @@ paths:
         devuelve `[]`, nunca un 404.
 
         **No incluye las carreras**: para eso esta `GET /sedes/{id}`.
+
+        Por defecto trae **solo las sedes activas**.
+      parameters:
+        - name: incluirInactivas
+          in: query
+          required: false
+          description: >-
+            Con `true` incluye tambien las sedes dadas de baja. Por defecto
+            quedan invisibles. Solo se aceptan los valores `true` y `false`;
+            cualquier otro da 400.
+          schema:
+            type: string
+            enum: ["true", "false"]
+            default: "false"
       responses:
         "200":
           description: Listado de sedes (array vacio si no hay ninguna)
@@ -99,7 +113,15 @@ paths:
               schema: { $ref: "#/components/schemas/Sede" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "409":
-          description: Ya existe una sede con ese nombre en esa ciudad.
+          description: |
+            Ya existe una sede con ese nombre en esa ciudad. Hay dos casos y el
+            `message` los distingue:
+
+            - Choca con una sede **activa**: no se puede crear otra igual.
+            - Choca con una sede **dada de baja**: la fila sigue ocupando su
+              lugar en el indice unico. En ese caso `details.sedeId` trae el id
+              de esa sede, para poder ofrecer reactivarla en vez de crear una
+              nueva.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -112,6 +134,9 @@ paths:
       description: |
         A diferencia del listado, el detalle incluye las carreras que se
         dictan en la sede.
+
+        Una sede **dada de baja devuelve 404**, igual que si no existiera. Con
+        `incluirInactivas=true` se devuelve de todos modos.
       parameters:
         - name: id
           in: path
@@ -119,6 +144,17 @@ paths:
           description: cuid de la sede
           schema: { type: string }
           example: clx1a2b3c4d5e6f7g8h9i0j1
+        - name: incluirInactivas
+          in: query
+          required: false
+          description: >-
+            Con `true` incluye tambien las sedes dadas de baja. Por defecto
+            quedan invisibles. Solo se aceptan los valores `true` y `false`;
+            cualquier otro da 400.
+          schema:
+            type: string
+            enum: ["true", "false"]
+            default: "false"
       responses:
         "200":
           description: La sede pedida, con sus carreras
@@ -150,6 +186,9 @@ paths:
         Los textos se recortan (trim) antes de guardarse. La respuesta es la
         sede sola, **sin** las carreras.
 
+        **No se puede editar una sede dada de baja**: devuelve 404. Primero hay
+        que reactivarla.
+
         Hoy es publico. Cuando exista el modulo de auth va a requerir un token
         con rol ADMIN.
       parameters:
@@ -180,6 +219,69 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+    delete:
+      tags: [Sedes]
+      summary: Da de baja una sede
+      description: |
+        **Baja logica**: la sede no se borra de la base, se marca con
+        `activa: false`. Sus vinculos con carreras se conservan, que es lo que
+        permite reactivarla despues sin perder nada.
+
+        A partir de la baja deja de aparecer en el listado y en el detalle,
+        salvo que se pida `incluirInactivas=true`.
+
+        Sobre una sede **que ya estaba dada de baja devuelve 404**, no 204: es
+        la contracara de que una sede dada de baja sea invisible.
+
+        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
+        con rol ADMIN.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "204":
+          description: Dada de baja. Sin body.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404":
+          description: La sede no existe o ya estaba dada de baja.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /sedes/{id}/reactivar:
+    post:
+      tags: [Sedes]
+      summary: Reactiva una sede dada de baja
+      description: |
+        Deshace la baja logica: vuelve a poner `activa: true`.
+
+        Es **idempotente**: sobre una sede que ya estaba activa devuelve 200 y
+        la sede, sin error. El front no necesita chequear el estado antes.
+
+        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
+        con rol ADMIN.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: La sede, ya activa
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
 components:
 
   securitySchemes:
@@ -199,7 +301,7 @@ components:
     Sede:
       type: object
       description: Una sede del instituto.
-      required: [id, nombre, ciudad, provincia, createdAt, updatedAt]
+      required: [id, nombre, ciudad, provincia, activa, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -224,6 +326,11 @@ components:
           type: [string, "null"]
           format: email
           examples: ["centro@instituto.edu.ar"]
+        activa:
+          type: boolean
+          description: >-
+            `false` significa que la sede esta dada de baja. Por defecto esas
+            sedes no aparecen ni en el listado ni en el detalle.
         createdAt:
           type: string
           format: date-time
