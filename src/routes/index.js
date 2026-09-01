@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../config/prisma.js';
+import usuarioRoutes from './usuario.routes.js';
 
 const router = Router();
 
@@ -7,6 +8,7 @@ const router = Router();
 // conexion a PostgreSQL este viva.
 router.get('/health', async (_req, res) => {
   let database = 'connected';
+
   try {
     await prisma.$queryRaw`SELECT 1`;
   } catch {
@@ -21,9 +23,7 @@ router.get('/health', async (_req, res) => {
   });
 });
 
-// Aca se montan los routers de cada recurso, por ejemplo:
-//
-//   import alumnoRoutes from './alumno.routes.js';
-//   router.use('/alumnos', alumnoRoutes);
+// Rutas de usuarios
+router.use('/usuarios', usuarioRoutes);
 
 export default router;
