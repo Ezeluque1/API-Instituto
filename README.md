@@ -209,6 +209,7 @@ Un par de detalles:
 | `npm run prisma:deploy` | Aplica migraciones existentes sin crear ninguna (produccion) |
 | `npm run prisma:generate` | Regenera el cliente de Prisma |
 | `npm run prisma:studio` | Abre el explorador visual de la base |
+| `npm run seed` | Carga los datos iniciales / usuarios de prueba en la base de datos |
 
 ## Variables de entorno
 
