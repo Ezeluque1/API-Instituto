@@ -205,6 +205,7 @@ Un par de detalles:
 |---|---|
 | `npm run dev` | Levanta con recarga automatica (`node --watch`, sin nodemon) |
 | `npm start` | Levanta en modo produccion |
+| `npm test` | Ejecuta la suite de pruebas automatizadas |
 | `npm run prisma:migrate` | Crea y aplica una migracion (desarrollo) |
 | `npm run prisma:deploy` | Aplica migraciones existentes sin crear ninguna (produccion) |
 | `npm run prisma:generate` | Regenera el cliente de Prisma |
