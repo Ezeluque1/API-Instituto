@@ -29,8 +29,13 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'La contraseña es obligatoria'),
 });
 
-// Validación para cerrar sesión.
+// Validación para cerrar sesión o renovar token.
 export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'El refresh token es obligatorio'),
+});
+
+// Validación para renovar el token de acceso.
+export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'El refresh token es obligatorio'),
 });
 
@@ -40,6 +45,12 @@ export const actualizarPerfilSchema = z.object({
   apellido: z.string().min(1, 'El apellido es obligatorio').optional(),
   email: z.email('El email no es valido').optional(),
   dni: z.string().min(1, 'El DNI es obligatorio').optional(),
+});
+
+// Validación para cambiar la contraseña estando autenticado.
+export const cambiarPasswordSchema = z.object({
+  passwordActual: z.string().min(1, 'La contraseña actual es obligatoria'),
+  nuevaPassword: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres'),
 });
 
 // Validación para buscar usuarios como administrador.

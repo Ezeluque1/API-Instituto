@@ -8,7 +8,9 @@ import {
   crearUsuarioSchema,
   loginSchema,
   logoutSchema,
+  refreshTokenSchema,
   actualizarPerfilSchema,
+  cambiarPasswordSchema,
   buscarUsuariosSchema,
   idParamSchema,
   cambiarRolSchema,
@@ -36,12 +38,26 @@ router.post(
   controller.login,
 );
 
+// Renovar token de acceso
+router.post(
+  '/refresh',
+  validate({ body: refreshTokenSchema }),
+  controller.renovarToken,
+);
+
 // Cerrar sesión
 router.post(
   '/logout',
   authenticate,
   validate({ body: logoutSchema }),
   controller.logout,
+);
+
+// Cerrar todas las sesiones
+router.post(
+  '/logout-all',
+  authenticate,
+  controller.logoutAll,
 );
 
 // Recuperar contraseña
@@ -75,6 +91,14 @@ router.patch(
   authenticate,
   validate({ body: actualizarPerfilSchema }),
   controller.actualizarPerfil,
+);
+
+// Cambiar contraseña
+router.patch(
+  '/perfil/password',
+  authenticate,
+  validate({ body: cambiarPasswordSchema }),
+  controller.cambiarPassword,
 );
 
 // ============================================================

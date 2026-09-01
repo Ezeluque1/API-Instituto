@@ -20,6 +20,17 @@ export async function login(req, res) {
   });
 }
 
+export async function renovarToken(req, res) {
+  const { refreshToken } = req.body;
+
+  const resultado = await usuarioService.renovarToken(refreshToken);
+
+  res.json({
+    success: true,
+    data: resultado,
+  });
+}
+
 export async function logout(req, res) {
   const { refreshToken } = req.body;
 
@@ -28,6 +39,15 @@ export async function logout(req, res) {
   res.json({
     success: true,
     message: 'Sesión cerrada correctamente',
+  });
+}
+
+export async function logoutAll(req, res) {
+  await usuarioService.logoutAll(req.user.id);
+
+  res.json({
+    success: true,
+    message: 'Todas las sesiones fueron cerradas correctamente',
   });
 }
 
@@ -49,6 +69,21 @@ export async function actualizarPerfil(req, res) {
   res.json({
     success: true,
     data: usuario,
+  });
+}
+
+export async function cambiarPassword(req, res) {
+  const { passwordActual, nuevaPassword } = req.body;
+
+  const resultado = await usuarioService.cambiarPassword(
+    req.user.id,
+    passwordActual,
+    nuevaPassword,
+  );
+
+  res.json({
+    success: true,
+    message: resultado.message,
   });
 }
 

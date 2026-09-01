@@ -93,6 +93,57 @@ export async function login(email, password) {
   };
 }
 
+export async function renovarToken(refreshToken) {
+  const tokenDoc = await prisma.refreshToken.findUnique({
+    where: { token: refreshToken },
+    include: {
+      usuario: true,
+    },
+  });
+
+  if (!tokenDoc) {
+    throw ApiError.unauthorized('Refresh token no encontrado');
+  }
+
+  if (tokenDoc.revocado) {
+    throw ApiError.unauthorized('El refresh token fue revocado');
+  }
+
+  if (tokenDoc.expiresAt < new Date()) {
+    throw ApiError.unauthorized('El refresh token expiró');
+  }
+
+  if (!tokenDoc.usuario || !tokenDoc.usuario.activo) {
+    throw ApiError.unauthorized('La cuenta está desactivada');
+  }
+
+  // Rotación del token: revocamos el token actual y creamos uno nuevo
+  const nuevoRefreshToken = crypto.randomBytes(48).toString('hex');
+  const nuevoAccessToken = signToken({
+    sub: tokenDoc.usuario.id,
+    rol: tokenDoc.usuario.rol,
+  });
+
+  await prisma.$transaction([
+    prisma.refreshToken.update({
+      where: { id: tokenDoc.id },
+      data: { revocado: true },
+    }),
+    prisma.refreshToken.create({
+      data: {
+        token: nuevoRefreshToken,
+        usuarioId: tokenDoc.usuario.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    }),
+  ]);
+
+  return {
+    accessToken: nuevoAccessToken,
+    refreshToken: nuevoRefreshToken,
+  };
+}
+
 export async function logout(refreshToken) {
   const token = await prisma.refreshToken.findUnique({
     where: { token: refreshToken },
@@ -109,6 +160,18 @@ export async function logout(refreshToken) {
   await prisma.refreshToken.update({
     where: { token: refreshToken },
     data: { revocado: true },
+  });
+}
+
+export async function logoutAll(usuarioId) {
+  await prisma.refreshToken.updateMany({
+    where: {
+      usuarioId,
+      revocado: false,
+    },
+    data: {
+      revocado: true,
+    },
   });
 }
 
@@ -134,11 +197,77 @@ export async function actualizarPerfil(usuarioId, datos) {
     throw ApiError.notFound('Usuario no encontrado');
   }
 
+  if (datos.email || datos.dni) {
+    const filtrosDuplicado = [];
+    if (datos.email) filtrosDuplicado.push({ email: datos.email });
+    if (datos.dni) filtrosDuplicado.push({ dni: datos.dni });
+
+    const duplicado = await prisma.usuario.findFirst({
+      where: {
+        NOT: { id: usuarioId },
+        OR: filtrosDuplicado,
+      },
+    });
+
+    if (duplicado) {
+      throw ApiError.conflict('Ya existe otro usuario con ese email o DNI');
+    }
+  }
+
   return prisma.usuario.update({
     where: { id: usuarioId },
     data: datos,
     select: usuarioPublicSelect,
   });
+}
+
+export async function cambiarPassword(
+  usuarioId,
+  passwordActual,
+  nuevaPassword,
+) {
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: usuarioId },
+  });
+
+  if (!usuario) {
+    throw ApiError.notFound('Usuario no encontrado');
+  }
+
+  if (!usuario.activo) {
+    throw ApiError.unauthorized('La cuenta está desactivada');
+  }
+
+  const passwordValida = await comparePassword(
+    passwordActual,
+    usuario.passwordHash,
+  );
+
+  if (!passwordValida) {
+    throw ApiError.badRequest('La contraseña actual es incorrecta');
+  }
+
+  const nuevoPasswordHash = await hashPassword(nuevaPassword);
+
+  await prisma.$transaction([
+    prisma.usuario.update({
+      where: { id: usuarioId },
+      data: { passwordHash: nuevoPasswordHash },
+    }),
+    prisma.refreshToken.updateMany({
+      where: {
+        usuarioId,
+        revocado: false,
+      },
+      data: {
+        revocado: true,
+      },
+    }),
+  ]);
+
+  return {
+    message: 'Contraseña actualizada correctamente',
+  };
 }
 
 export async function recuperarPassword(email) {
@@ -202,6 +331,17 @@ export async function resetPassword(token, password) {
     prisma.passwordResetToken.update({
       where: { id: resetToken.id },
       data: { usado: true },
+    }),
+
+    // Invalida todas las sesiones activas anteriores del usuario
+    prisma.refreshToken.updateMany({
+      where: {
+        usuarioId: resetToken.usuarioId,
+        revocado: false,
+      },
+      data: {
+        revocado: true,
+      },
     }),
   ]);
 

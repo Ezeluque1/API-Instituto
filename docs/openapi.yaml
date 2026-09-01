@@ -85,6 +85,31 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /usuarios/refresh:
+    post:
+      tags: [Usuarios]
+      summary: Renovar token de acceso
+      description: Utiliza un refresh token válido para obtener un nuevo token de acceso (con rotación del refresh token).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenInput"
+      responses:
+        "200":
+          description: Token renovado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshTokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /usuarios/logout:
     post:
       tags: [Usuarios]
@@ -100,12 +125,35 @@ paths:
       responses:
         "200":
           description: Sesión cerrada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /usuarios/logout-all:
+    post:
+      tags: [Usuarios]
+      summary: Cerrar todas las sesiones
+      description: Invalida todos los refresh tokens activos del usuario autenticado.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Todas las sesiones fueron cerradas correctamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -205,6 +253,35 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /usuarios/perfil/password:
+    patch:
+      tags: [Usuarios]
+      summary: Cambiar contraseña (usuario autenticado)
+      description: Permite al usuario autenticado cambiar su contraseña actual por una nueva, invalidando todas sus sesiones activas.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CambiarPasswordInput"
+      responses:
+        "200":
+          description: Contraseña cambiada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -496,6 +573,29 @@ components:
           type: string
           description: Refresh token de la sesión
 
+    RefreshTokenInput:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          description: Refresh token de la sesión
+
+    RefreshTokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+
     RecuperarPasswordInput:
       type: object
       required:
@@ -546,6 +646,22 @@ components:
           format: email
         dni:
           type: string
+
+    CambiarPasswordInput:
+      type: object
+      required:
+        - passwordActual
+        - nuevaPassword
+      properties:
+        passwordActual:
+          type: string
+          format: password
+          description: Contraseña actual del usuario
+        nuevaPassword:
+          type: string
+          format: password
+          minLength: 8
+          description: Nueva contraseña deseada (mínimo 8 caracteres)
 
     CambiarRolInput:
       type: object
