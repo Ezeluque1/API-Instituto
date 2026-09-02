@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../config/prisma.js';
 import sedeRoutes from './sede.routes.js';
+import usuarioRoutes from './usuario.routes.js';
 
 const router = Router();
 
@@ -8,6 +9,7 @@ const router = Router();
 // conexion a PostgreSQL este viva.
 router.get('/health', async (_req, res) => {
   let database = 'connected';
+
   try {
     await prisma.$queryRaw`SELECT 1`;
   } catch {
@@ -25,5 +27,6 @@ router.get('/health', async (_req, res) => {
 // Un router por recurso. Mirar sede.routes.js como referencia para los que
 // falten (carreras, publicaciones, contacto).
 router.use('/sedes', sedeRoutes);
+router.use('/usuarios', usuarioRoutes);
 
 export default router;
