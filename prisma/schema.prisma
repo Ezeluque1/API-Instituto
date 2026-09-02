@@ -47,15 +47,27 @@ model Sede {
   direccion  String?
   telefono   String?
   email      String?
+
+  // Soft delete / dar de baja sin borrar, igual que Carrera.activa.
+  // OJO: una sede dada de baja sigue ocupando su lugar en el unique de
+  // (nombre, ciudad). El service lo detecta y avisa que hay que reactivarla.
+  activa     Boolean  @default(true)
+
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   carreras   CarreraSede[]
 
+  // No puede haber dos sedes con el mismo nombre en la misma ciudad.
+  // Permite "Sede Centro" en Cordoba y en Rosario, pero no dos veces en una.
+  // Prisma tira P2002 al violarlo y el errorHandler lo devuelve como 409.
+  @@unique([nombre, ciudad])
+
   // Índices para búsqueda por ciudad/provincia cuando hay muchas sedes
   @@index([ciudad])
   @@index([provincia])
   @@index([nombre])
+  @@index([activa])
 }
 
 // ============================================================

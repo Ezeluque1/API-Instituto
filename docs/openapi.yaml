@@ -1,3 +1,16 @@
+# ============================================================================
+# Documentacion de la API - OpenAPI 3.1
+#
+# TODA la documentacion se escribe en ESTE archivo, nunca en los routers.
+# Los routers quedan solo con logica de ruteo.
+#
+# Se ve en:  http://localhost:3000/api/docs                (local)
+#            https://api-instituto.onrender.com/api/docs   (produccion)
+#
+# Al agregar un endpoint: sumar su tag en `tags` y su ruta en `paths`.
+# Abajo de `paths` hay un ejemplo completo comentado para copiar y pegar.
+# ============================================================================
+
 openapi: 3.1.0
 
 info:
@@ -29,13 +42,294 @@ servers:
     description: Desarrollo local
 
 # Un tag por recurso. Agrupa los endpoints en la UI y define el orden en que
-# aparecen. Ejemplo:
-
+# aparecen.
 tags:
+  - name: Sedes
+    description: Sedes donde se dictan las carreras
   - name: Usuarios
     description: Autenticación, perfil y administración de usuarios
 
+# Las rutas se escriben SIN el prefijo `/api`: ya esta incluido en `servers`.
+# Es decir, el endpoint GET /api/sedes se documenta aca como `/sedes`.
+#
+# `/sedes` es la referencia a copiar para los recursos que falten.
 paths:
+
+  /sedes:
+    get:
+      tags: [Sedes]
+      summary: Lista todas las sedes
+      description: |
+        Devuelve todas las sedes ordenadas por nombre. Si no hay ninguna
+        devuelve `[]`, nunca un 404.
+
+        **No incluye las carreras**: para eso esta `GET /sedes/{id}`.
+
+        Por defecto trae **solo las sedes activas**. El endpoint es publico;
+        solo `incluirInactivas=true` exige un token de ADMIN.
+
+        ### Busqueda
+
+        Con `buscar` se filtra por **ciudad o provincia**: alcanza con que
+        matchee cualquiera de las dos. Es una coincidencia **parcial y sin
+        distinguir mayusculas**, asi que `cor` encuentra `Cordoba`.
+
+        Dos limites a tener presentes:
+
+        - **No ignora tildes**: `Cordoba` no encuentra `Cordoba` escrito con
+          acento. Resolverlo requiere la extension `unaccent` de Postgres.
+        - Un `buscar` vacio o con solo espacios **equivale a no filtrar**, no
+          es un error: asi un input de busqueda puede mandar el parametro
+          siempre, aunque este vacio.
+      parameters:
+        - name: buscar
+          in: query
+          required: false
+          description: >-
+            Filtra por ciudad o provincia. Coincidencia parcial, sin distinguir
+            mayusculas, sensible a tildes. Vacio equivale a no filtrar.
+          schema:
+            type: string
+            maxLength: 80
+          example: cordoba
+        - name: incluirInactivas
+          in: query
+          required: false
+          description: >-
+            Con `true` incluye tambien las sedes dadas de baja. **Requiere token
+            con rol ADMIN**: sin el, la respuesta es 403. Por defecto quedan
+            invisibles. Solo se aceptan los valores `true` y `false`; cualquier
+            otro da 400.
+          schema:
+            type: string
+            enum: ["true", "false"]
+            default: "false"
+      responses:
+        "200":
+          description: Listado de sedes (array vacio si no hay ninguna)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    post:
+      tags: [Sedes]
+      summary: Crea una sede
+      description: |
+        No puede haber dos sedes con el mismo `nombre` en la misma `ciudad`.
+        Los textos se recortan (trim) antes de guardarse.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SedeInput" }
+      responses:
+        "201":
+          description: Sede creada
+          headers:
+            Location:
+              description: URL de la sede recien creada
+              schema: { type: string }
+              example: /api/sedes/clx1a2b3c4d5e6f7g8h9i0j1
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: |
+            Ya existe una sede con ese nombre en esa ciudad. Hay dos casos y el
+            `message` los distingue:
+
+            - Choca con una sede **activa**: no se puede crear otra igual.
+            - Choca con una sede **dada de baja**: la fila sigue ocupando su
+              lugar en el indice unico. En ese caso `details.sedeId` trae el id
+              de esa sede, para poder ofrecer reactivarla en vez de crear una
+              nueva.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /sedes/{id}:
+    get:
+      tags: [Sedes]
+      summary: Obtiene una sede por id, con sus carreras
+      description: |
+        A diferencia del listado, el detalle incluye las carreras que se
+        dictan en la sede.
+
+        Una sede **dada de baja devuelve 404**, igual que si no existiera. Con
+        `incluirInactivas=true` se devuelve de todos modos, pero eso exige un
+        token de ADMIN.
+
+        El endpoint en si es publico.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+        - name: incluirInactivas
+          in: query
+          required: false
+          description: >-
+            Con `true` incluye tambien las sedes dadas de baja. **Requiere token
+            con rol ADMIN**: sin el, la respuesta es 403. Por defecto quedan
+            invisibles. Solo se aceptan los valores `true` y `false`; cualquier
+            otro da 400.
+          schema:
+            type: string
+            enum: ["true", "false"]
+            default: "false"
+      responses:
+        "200":
+          description: La sede pedida, con sus carreras
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SedeDetalle" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    patch:
+      tags: [Sedes]
+      summary: Modifica una sede
+      description: |
+        Actualizacion **parcial**: se manda solo lo que cambia. Hay que enviar
+        al menos un campo, un body vacio es un 400.
+
+        Los tres casos que conviene tener claros:
+
+        | Lo que mandas | Que pasa |
+        |---|---|
+        | omitis el campo | queda como estaba |
+        | `"telefono": null` | se borra el valor |
+        | `"telefono": ""` | **400** — para borrar se usa `null` |
+
+        `nombre`, `ciudad` y `provincia` son obligatorios en la base: no se
+        pueden poner en `null`, aunque si cambiar por otro valor.
+
+        Los textos se recortan (trim) antes de guardarse. La respuesta es la
+        sede sola, **sin** las carreras.
+
+        **No se puede editar una sede dada de baja**: devuelve 404. Primero hay
+        que reactivarla.
+
+        **Requiere token con rol ADMIN.**
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SedeUpdateInput" }
+      responses:
+        "200":
+          description: La sede ya modificada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >-
+            El cambio dejaria dos sedes con el mismo nombre en la misma ciudad.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    delete:
+      tags: [Sedes]
+      summary: Da de baja una sede
+      description: |
+        **Baja logica**: la sede no se borra de la base, se marca con
+        `activa: false`. Sus vinculos con carreras se conservan, que es lo que
+        permite reactivarla despues sin perder nada.
+
+        A partir de la baja deja de aparecer en el listado y en el detalle,
+        salvo que se pida `incluirInactivas=true`.
+
+        Sobre una sede **que ya estaba dada de baja devuelve 404**, no 204: es
+        la contracara de que una sede dada de baja sea invisible.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "204":
+          description: Dada de baja. Sin body.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: La sede no existe o ya estaba dada de baja.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /sedes/{id}/reactivar:
+    post:
+      tags: [Sedes]
+      summary: Reactiva una sede dada de baja
+      description: |
+        Deshace la baja logica: vuelve a poner `activa: true`.
+
+        Es **idempotente**: sobre una sede que ya estaba activa devuelve 200 y
+        la sede, sin error. El front no necesita chequear el estado antes.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la sede
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: La sede, ya activa
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /usuarios/registro:
     post:
@@ -329,8 +623,6 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-
-
 components:
 
   securitySchemes:
@@ -344,62 +636,188 @@ components:
 
   schemas:
 
-    # Los schemas de las entidades (Sede, Carrera, Usuario, Publicacion,
-    # MensajeContacto) van aca, uno por recurso, a medida que se implementan.
+    # Un schema por entidad, a medida que se implementan. Convencion: `X` es
+    # lo que devuelve la API y `XInput` lo que se recibe en el body.
 
-    Error:
+    Sede:
       type: object
-      description: Forma de cualquier respuesta de error de la API.
-      required: [success, message]
+      description: Una sede del instituto.
+      required: [id, nombre, ciudad, provincia, activa, createdAt, updatedAt]
       properties:
-        success:
+        id:
+          type: string
+          description: cuid generado por la base.
+          examples: ["clx1a2b3c4d5e6f7g8h9i0j1"]
+        nombre:
+          type: string
+          examples: ["Sede Centro"]
+        ciudad:
+          type: string
+          examples: ["Cordoba"]
+        provincia:
+          type: string
+          examples: ["Cordoba"]
+        direccion:
+          type: [string, "null"]
+          examples: ["Av. Colon 1234"]
+        telefono:
+          type: [string, "null"]
+          examples: ["+54 351 4567890"]
+        email:
+          type: [string, "null"]
+          format: email
+          examples: ["centro@instituto.edu.ar"]
+        activa:
           type: boolean
-          const: false
-        message:
-          type: string
-          description: Descripcion del error, apta para mostrar al usuario.
-          examples: ["El registro solicitado no existe"]
-        details:
-          description: Informacion extra. Solo aparece en algunos errores.
-        stack:
-          type: string
           description: >-
-            Traza del error. SOLO se incluye cuando NODE_ENV=development;
-            en produccion nunca se expone.
+            `false` significa que la sede esta dada de baja. Por defecto esas
+            sedes no aparecen ni en el listado ni en el detalle.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
-    ValidationIssue:
-      type: object
-      description: Un campo que no paso la validacion de Zod.
-      required: [source, field, message]
-      properties:
-        source:
-          type: string
-          enum: [body, params, query]
-          description: En que parte del request estaba el campo.
-        field:
-          type: string
-          examples: [email]
-        message:
-          type: string
-          examples: [Invalid email address]
-
-    ValidationError:
+    SedeInput:
       type: object
       description: >-
-        Error 400 devuelto por el middleware `validate()`. A diferencia del
-        resto, `details` trae la lista de campos que fallaron.
-      required: [success, message, details]
+        Body para crear una sede. No acepta campos que no esten en esta lista:
+        si mandas uno de mas, la respuesta es un 400.
+      required: [nombre, ciudad, provincia]
+      additionalProperties: false
       properties:
-        success:
-          type: boolean
-          const: false
-        message:
+        nombre:
           type: string
-          examples: [Datos de entrada invalidos]
-        details:
-          type: array
-          items:
-            $ref: "#/components/schemas/ValidationIssue"
+          minLength: 1
+          maxLength: 120
+          examples: ["Sede Centro"]
+        ciudad:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        provincia:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        direccion:
+          type: string
+          minLength: 1
+          maxLength: 200
+          examples: ["Av. Colon 1234"]
+        telefono:
+          type: string
+          minLength: 1
+          maxLength: 30
+          examples: ["+54 351 4567890"]
+        email:
+          type: string
+          format: email
+          maxLength: 120
+          examples: ["centro@instituto.edu.ar"]
+
+    SedeUpdateInput:
+      type: object
+      description: >-
+        Body del PATCH. Todos los campos son opcionales, pero hay que mandar al
+        menos uno. Los tres opcionales aceptan `null` para borrar el valor. No
+        acepta campos que no esten en esta lista.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          examples: ["Sede Centro II"]
+        ciudad:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        provincia:
+          type: string
+          minLength: 1
+          maxLength: 80
+          examples: ["Cordoba"]
+        direccion:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 200
+          description: "`null` borra la direccion."
+          examples: ["Av. Colon 1234"]
+        telefono:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 30
+          description: "`null` borra el telefono."
+          examples: ["+54 351 4567890"]
+        email:
+          type: [string, "null"]
+          format: email
+          maxLength: 120
+          description: "`null` borra el email."
+          examples: ["centro@instituto.edu.ar"]
+
+    SedeDetalle:
+      description: |
+        Una sede con las carreras que se dictan en ella. Lo devuelve
+        `GET /sedes/{id}`.
+
+        Dos cosas a tener en cuenta:
+
+        - Cada elemento de `carreras` viene **envuelto** en un objeto
+          `{ carrera: ... }`. No es un array de carreras: es la tabla
+          intermedia de la relacion N:M. Del lado del front:
+          `sede.carreras.map(c => c.carrera)`.
+        - **Incluye las carreras dadas de baja**, marcadas con
+          `activa: false`. Filtrarlas es decision del front.
+      allOf:
+        - $ref: "#/components/schemas/Sede"
+        - type: object
+          required: [carreras]
+          properties:
+            carreras:
+              type: array
+              description: Ordenadas por nombre de la carrera.
+              items:
+                type: object
+                required: [carrera]
+                properties:
+                  carrera: { $ref: "#/components/schemas/CarreraResumen" }
+
+    CarreraResumen:
+      type: object
+      description: >-
+        Version reducida de una Carrera, para cuando viaja anidada dentro de
+        otro recurso. No trae `descripcion` ni los timestamps.
+      required: [id, nombre, slug, modalidad, activa]
+      properties:
+        id:
+          type: string
+          examples: ["clc1a2b3c4d5e6f7g8h9i0j1"]
+        nombre:
+          type: string
+          examples: ["Tecnicatura Superior en Programacion"]
+        slug:
+          type: string
+          examples: ["tecnicatura-superior-en-programacion"]
+        modalidad:
+          type: string
+          enum: [PRESENCIAL, VIRTUAL, HIBRIDA]
+        duracionAnios:
+          type: [integer, "null"]
+          examples: [3]
+        tituloOtorgado:
+          type: [string, "null"]
+          examples: ["Tecnico Superior en Programacion"]
+        activa:
+          type: boolean
+          description: >-
+            `false` significa que la carrera esta dada de baja. Viene igual en
+            la respuesta.
 
     Usuario:
       type: object
@@ -584,6 +1002,60 @@ components:
           example: true
         message:
           type: string
+
+    Error:
+      type: object
+      description: Forma de cualquier respuesta de error de la API.
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+          description: Descripcion del error, apta para mostrar al usuario.
+          examples: ["El registro solicitado no existe"]
+        details:
+          description: Informacion extra. Solo aparece en algunos errores.
+        stack:
+          type: string
+          description: >-
+            Traza del error. SOLO se incluye cuando NODE_ENV=development;
+            en produccion nunca se expone.
+
+    ValidationIssue:
+      type: object
+      description: Un campo que no paso la validacion de Zod.
+      required: [source, field, message]
+      properties:
+        source:
+          type: string
+          enum: [body, params, query]
+          description: En que parte del request estaba el campo.
+        field:
+          type: string
+          examples: ["email"]
+        message:
+          type: string
+          examples: ["Invalid email address"]
+
+    ValidationError:
+      type: object
+      description: >-
+        Error 400 devuelto por el middleware `validate()`. A diferencia del
+        resto, `details` trae la lista de campos que fallaron.
+      required: [success, message, details]
+      properties:
+        success:
+          type: boolean
+          const: false
+        message:
+          type: string
+          examples: ["Datos de entrada invalidos"]
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValidationIssue"
 
   responses:
 
