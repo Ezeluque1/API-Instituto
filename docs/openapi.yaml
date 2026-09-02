@@ -65,15 +65,17 @@ paths:
 
         **No incluye las carreras**: para eso esta `GET /sedes/{id}`.
 
-        Por defecto trae **solo las sedes activas**.
+        Por defecto trae **solo las sedes activas**. El endpoint es publico;
+        solo `incluirInactivas=true` exige un token de ADMIN.
       parameters:
         - name: incluirInactivas
           in: query
           required: false
           description: >-
-            Con `true` incluye tambien las sedes dadas de baja. Por defecto
-            quedan invisibles. Solo se aceptan los valores `true` y `false`;
-            cualquier otro da 400.
+            Con `true` incluye tambien las sedes dadas de baja. **Requiere token
+            con rol ADMIN**: sin el, la respuesta es 403. Por defecto quedan
+            invisibles. Solo se aceptan los valores `true` y `false`; cualquier
+            otro da 400.
           schema:
             type: string
             enum: ["true", "false"]
@@ -86,6 +88,9 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "500": { $ref: "#/components/responses/InternalError" }
 
     post:
@@ -95,8 +100,9 @@ paths:
         No puede haber dos sedes con el mismo `nombre` en la misma `ciudad`.
         Los textos se recortan (trim) antes de guardarse.
 
-        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
-        con rol ADMIN.
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -114,6 +120,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Sede" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "409":
           description: |
             Ya existe una sede con ese nombre en esa ciudad. Hay dos casos y el
@@ -138,7 +146,10 @@ paths:
         dictan en la sede.
 
         Una sede **dada de baja devuelve 404**, igual que si no existiera. Con
-        `incluirInactivas=true` se devuelve de todos modos.
+        `incluirInactivas=true` se devuelve de todos modos, pero eso exige un
+        token de ADMIN.
+
+        El endpoint en si es publico.
       parameters:
         - name: id
           in: path
@@ -150,9 +161,10 @@ paths:
           in: query
           required: false
           description: >-
-            Con `true` incluye tambien las sedes dadas de baja. Por defecto
-            quedan invisibles. Solo se aceptan los valores `true` y `false`;
-            cualquier otro da 400.
+            Con `true` incluye tambien las sedes dadas de baja. **Requiere token
+            con rol ADMIN**: sin el, la respuesta es 403. Por defecto quedan
+            invisibles. Solo se aceptan los valores `true` y `false`; cualquier
+            otro da 400.
           schema:
             type: string
             enum: ["true", "false"]
@@ -164,6 +176,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SedeDetalle" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/InternalError" }
 
@@ -191,8 +205,7 @@ paths:
         **No se puede editar una sede dada de baja**: devuelve 404. Primero hay
         que reactivarla.
 
-        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
-        con rol ADMIN.
+        **Requiere token con rol ADMIN.**
       parameters:
         - name: id
           in: path
@@ -200,6 +213,8 @@ paths:
           description: cuid de la sede
           schema: { type: string }
           example: clx1a2b3c4d5e6f7g8h9i0j1
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -212,6 +227,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Sede" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: >-
@@ -235,8 +252,9 @@ paths:
         Sobre una sede **que ya estaba dada de baja devuelve 404**, no 204: es
         la contracara de que una sede dada de baja sea invisible.
 
-        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
-        con rol ADMIN.
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -248,6 +266,8 @@ paths:
         "204":
           description: Dada de baja. Sin body.
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: La sede no existe o ya estaba dada de baja.
           content:
@@ -265,8 +285,9 @@ paths:
         Es **idempotente**: sobre una sede que ya estaba activa devuelve 200 y
         la sede, sin error. El front no necesita chequear el estado antes.
 
-        Hoy es publico. Cuando exista el modulo de auth va a requerir un token
-        con rol ADMIN.
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -281,6 +302,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Sede" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/InternalError" }
 
