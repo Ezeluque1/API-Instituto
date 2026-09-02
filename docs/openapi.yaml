@@ -67,7 +67,31 @@ paths:
 
         Por defecto trae **solo las sedes activas**. El endpoint es publico;
         solo `incluirInactivas=true` exige un token de ADMIN.
+
+        ### Busqueda
+
+        Con `buscar` se filtra por **ciudad o provincia**: alcanza con que
+        matchee cualquiera de las dos. Es una coincidencia **parcial y sin
+        distinguir mayusculas**, asi que `cor` encuentra `Cordoba`.
+
+        Dos limites a tener presentes:
+
+        - **No ignora tildes**: `Cordoba` no encuentra `Cordoba` escrito con
+          acento. Resolverlo requiere la extension `unaccent` de Postgres.
+        - Un `buscar` vacio o con solo espacios **equivale a no filtrar**, no
+          es un error: asi un input de busqueda puede mandar el parametro
+          siempre, aunque este vacio.
       parameters:
+        - name: buscar
+          in: query
+          required: false
+          description: >-
+            Filtra por ciudad o provincia. Coincidencia parcial, sin distinguir
+            mayusculas, sensible a tildes. Vacio equivale a no filtrar.
+          schema:
+            type: string
+            maxLength: 80
+          example: cordoba
         - name: incluirInactivas
           in: query
           required: false

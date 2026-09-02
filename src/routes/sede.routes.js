@@ -12,7 +12,8 @@ import {
   crearSedeSchema,
   actualizarSedeSchema,
   sedeIdParamSchema,
-  sedesQuerySchema,
+  sedesListadoQuerySchema,
+  sedeDetalleQuerySchema,
 } from '../models/sede.model.js';
 
 const router = Router();
@@ -38,7 +39,7 @@ function soloAdminVeInactivas(req, _res, next) {
 router.get(
   '/',
   authenticateOptional,
-  validate({ query: sedesQuerySchema }),
+  validate({ query: sedesListadoQuerySchema }),
   soloAdminVeInactivas,
   controller.listar,
 );
@@ -46,7 +47,7 @@ router.get(
 router.get(
   '/:id',
   authenticateOptional,
-  validate({ params: sedeIdParamSchema, query: sedesQuerySchema }),
+  validate({ params: sedeIdParamSchema, query: sedeDetalleQuerySchema }),
   soloAdminVeInactivas,
   controller.obtenerPorId,
 );

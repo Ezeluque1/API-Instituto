@@ -77,18 +77,50 @@ export const crearSedeSchema = z.strictObject({
 });
 
 /**
- * Query string de los GET de sedes.
- *
  * Se valida como enum de strings y NO con `z.coerce.boolean()`: `Boolean("false")`
  * es `true`, asi que con coerce un `?incluirInactivas=false` traeria justamente
  * las inactivas. Ademas, cualquier otro valor da 400 en vez de interpretarse
  * en silencio.
+ *
+ * Ver el guard `soloAdminVeInactivas` en sede.routes.js: pedir las inactivas
+ * exige rol ADMIN.
  */
-export const sedesQuerySchema = z.strictObject({
-  incluirInactivas: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((v) => v === 'true'),
+const incluirInactivas = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform((v) => v === 'true');
+
+/** Query string del GET /sedes/:id. */
+export const sedeDetalleQuerySchema = z.strictObject({ incluirInactivas });
+
+/**
+ * Query string del GET /sedes.
+ *
+ * Va separado del schema del detalle a proposito: si `buscar` viviera en un
+ * schema compartido, `GET /sedes/:id?buscar=x` lo aceptaria y lo ignoraria en
+ * silencio, que es justo lo que el strictObject viene a evitar.
+ */
+export const sedesListadoQuerySchema = z.strictObject({
+  incluirInactivas,
+
+  /**
+   * Termino de busqueda. Matchea contra ciudad O provincia, parcial y sin
+   * distinguir mayusculas.
+   *
+   * Vacio o solo espacios equivale a no filtrar, no a un 400: un input de
+   * busqueda atado al query string manda el parametro vacio apenas el usuario
+   * borra el texto. El `.trim()` antes del transform es lo que hace que
+   * `"   "` termine en undefined en vez de buscar espacios.
+   *
+   * OJO: `mode: 'insensitive'` resuelve mayusculas pero NO tildes, asi que
+   * "Cordoba" no encuentra "Cordoba" con acento.
+   */
+  buscar: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .transform((v) => v || undefined),
 });
 
 /**

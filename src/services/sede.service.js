@@ -59,11 +59,35 @@ export async function crear(datos) {
  * Por defecto solo las activas. No trae las carreras: son un dato del detalle,
  * no de la grilla. Si no hay ninguna devuelve `[]`, nunca un 404.
  *
- * @param {{ incluirInactivas?: boolean }} [opciones]
+ * `buscar` matchea contra ciudad O provincia, parcial y sin distinguir
+ * mayusculas. Dos cosas para tener presentes:
+ *
+ *   - NO ignora tildes: "Cordoba" no encuentra "Cordoba" con acento. Para eso
+ *     haria falta la extension unaccent de Postgres.
+ *   - Los indices de ciudad y provincia no sirven aca: un `contains` se
+ *     traduce a ILIKE '%texto%', que un btree no puede aprovechar. Con la
+ *     cantidad de sedes de un instituto da igual, pero que no confunda.
+ *
+ * @param {{ incluirInactivas?: boolean, buscar?: string }} [opciones]
  */
-export async function listar({ incluirInactivas = false } = {}) {
+export async function listar({ incluirInactivas = false, buscar } = {}) {
+  const where = {};
+
+  if (!incluirInactivas) {
+    where.activa = true;
+  }
+
+  if (buscar) {
+    // `activa` y `OR` conviven en el mismo nivel: Prisma los combina con AND,
+    // asi que la baja logica se sigue aplicando sobre lo que matchea.
+    where.OR = [
+      { ciudad: { contains: buscar, mode: 'insensitive' } },
+      { provincia: { contains: buscar, mode: 'insensitive' } },
+    ];
+  }
+
   return prisma.sede.findMany({
-    where: incluirInactivas ? {} : { activa: true },
+    where,
     select: sedePublicSelect,
     orderBy: { nombre: 'asc' },
   });
