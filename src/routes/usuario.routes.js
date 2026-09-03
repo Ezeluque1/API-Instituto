@@ -8,7 +8,10 @@ import {
   crearUsuarioSchema,
   loginSchema,
   logoutSchema,
+  refreshTokenSchema,
   actualizarPerfilSchema,
+  cambiarPasswordSchema,
+  listarUsuariosQuerySchema,
   buscarUsuariosSchema,
   idParamSchema,
   cambiarRolSchema,
@@ -36,12 +39,26 @@ router.post(
   controller.login,
 );
 
+// Renovar token de acceso
+router.post(
+  '/refresh',
+  validate({ body: refreshTokenSchema }),
+  controller.renovarToken,
+);
+
 // Cerrar sesión
 router.post(
   '/logout',
   authenticate,
   validate({ body: logoutSchema }),
   controller.logout,
+);
+
+// Cerrar todas las sesiones
+router.post(
+  '/logout-all',
+  authenticate,
+  controller.logoutAll,
 );
 
 // Recuperar contraseña
@@ -77,6 +94,14 @@ router.patch(
   controller.actualizarPerfil,
 );
 
+// Cambiar contraseña
+router.patch(
+  '/perfil/password',
+  authenticate,
+  validate({ body: cambiarPasswordSchema }),
+  controller.cambiarPassword,
+);
+
 // ============================================================
 // ADMINISTRACIÓN DE USUARIOS
 // ============================================================
@@ -86,6 +111,7 @@ router.get(
   '/',
   authenticate,
   authorize('ADMIN'),
+  validate({ query: listarUsuariosQuerySchema }),
   controller.listarUsuarios,
 );
 
@@ -96,6 +122,17 @@ router.get(
   authorize('ADMIN'),
   validate({ query: buscarUsuariosSchema }),
   controller.buscarUsuarios,
+);
+
+// Obtener usuario por ID
+router.get(
+  '/:id',
+  authenticate,
+  authorize('ADMIN'),
+  validate({
+    params: idParamSchema,
+  }),
+  controller.obtenerPorId,
 );
 
 // Cambiar rol
@@ -119,6 +156,17 @@ router.patch(
     params: idParamSchema,
   }),
   controller.desactivarUsuario,
+);
+
+// Reactivar usuario
+router.patch(
+  '/:id/reactivar',
+  authenticate,
+  authorize('ADMIN'),
+  validate({
+    params: idParamSchema,
+  }),
+  controller.reactivarUsuario,
 );
 
 export default router;

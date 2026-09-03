@@ -20,6 +20,17 @@ export async function login(req, res) {
   });
 }
 
+export async function renovarToken(req, res) {
+  const { refreshToken } = req.body;
+
+  const resultado = await usuarioService.renovarToken(refreshToken);
+
+  res.json({
+    success: true,
+    data: resultado,
+  });
+}
+
 export async function logout(req, res) {
   const { refreshToken } = req.body;
 
@@ -28,6 +39,15 @@ export async function logout(req, res) {
   res.json({
     success: true,
     message: 'Sesión cerrada correctamente',
+  });
+}
+
+export async function logoutAll(req, res) {
+  await usuarioService.logoutAll(req.user.id);
+
+  res.json({
+    success: true,
+    message: 'Todas las sesiones fueron cerradas correctamente',
   });
 }
 
@@ -52,6 +72,21 @@ export async function actualizarPerfil(req, res) {
   });
 }
 
+export async function cambiarPassword(req, res) {
+  const { passwordActual, nuevaPassword } = req.body;
+
+  const resultado = await usuarioService.cambiarPassword(
+    req.user.id,
+    passwordActual,
+    nuevaPassword,
+  );
+
+  res.json({
+    success: true,
+    message: resultado.message,
+  });
+}
+
 export async function recuperarPassword(req, res) {
   const resultado = await usuarioService.recuperarPassword(req.body.email);
 
@@ -72,23 +107,34 @@ export async function resetPassword(req, res) {
   });
 }
 
-export async function listarUsuarios(_req, res) {
-  const usuarios = await usuarioService.listarUsuarios();
+export async function obtenerPorId(req, res) {
+  const usuario = await usuarioService.obtenerPorId(req.validated.params.id);
 
   res.json({
     success: true,
-    data: usuarios,
+    data: usuario,
+  });
+}
+
+export async function listarUsuarios(req, res) {
+  const resultado = await usuarioService.listarUsuarios(
+    req.validated?.query || {},
+  );
+
+  res.json({
+    success: true,
+    ...resultado,
   });
 }
 
 export async function buscarUsuarios(req, res) {
-  const { buscar } = req.validated.query;
+  const { buscar, ...opciones } = req.validated.query;
 
-  const usuarios = await usuarioService.buscarUsuarios(buscar);
+  const resultado = await usuarioService.buscarUsuarios(buscar, opciones);
 
   res.json({
     success: true,
-    data: usuarios,
+    ...resultado,
   });
 }
 
@@ -109,6 +155,17 @@ export async function desactivarUsuario(req, res) {
   const usuario = await usuarioService.desactivarUsuario(
     req.validated.params.id,
     req.user.id,
+  );
+
+  res.json({
+    success: true,
+    data: usuario,
+  });
+}
+
+export async function reactivarUsuario(req, res) {
+  const usuario = await usuarioService.reactivarUsuario(
+    req.validated.params.id,
   );
 
   res.json({
