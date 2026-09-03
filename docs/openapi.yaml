@@ -48,6 +48,8 @@ tags:
     description: Sedes donde se dictan las carreras
   - name: Usuarios
     description: Autenticación, perfil y administración de usuarios
+  - name: Publicaciones
+    description: Noticias y eventos del instituto
 
 # Las rutas se escriben SIN el prefijo `/api`: ya esta incluido en `servers`.
 # Es decir, el endpoint GET /api/sedes se documenta aca como `/sedes`.
@@ -623,6 +625,229 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /publicaciones:
+    get:
+      tags: [Publicaciones]
+      summary: Lista publicaciones (noticias y eventos)
+      description: |
+        Endpoint público. Devuelve el listado ordenado por `createdAt` descendente
+        (más recientes primero). Si no hay resultados devuelve `[]`, nunca 404.
+
+        Todos los filtros son opcionales y combinables.
+
+        ### Filtros
+
+        - `tipo`: `NOTICIA` o `EVENTO`
+        - `buscar`: búsqueda parcial, case-insensitive y accent-insensitive (ignora tildes) al menos en `titulo`, `resumen` y `contenido`.
+          Vacío o solo espacios equivale a no filtrar. Ej: `programacion` encuentra `programación`, `tecnologia` encuentra `tecnología`. Los caracteres `%`, `_` y `\` se interpretan literalmente.
+        - `destacada`: `true` o `false`
+        - `fechaDesde` / `fechaHasta`: rango de fechas ISO 8601 (datetime con offset, ej `2026-10-20T18:00:00.000Z`).
+          Validación: `fechaDesde` no puede ser posterior a `fechaHasta` (400).
+
+        ### Semántica de fechas
+
+        - Para `NOTICIA`, la fecha propia es `createdAt`
+        - Para `EVENTO`, la fecha específica es `fechaEvento`
+
+        Comportamiento del filtro de fechas:
+
+        - `?tipo=EVENTO&fechaDesde=...&fechaHasta=...` → filtra por `fechaEvento` en el rango
+        - `?tipo=NOTICIA&fechaDesde=...&fechaHasta=...` → filtra por `createdAt` en el rango
+        - `?fechaDesde=...&fechaHasta=...` sin `tipo` → trae publicaciones donde
+          `(tipo=EVENTO y fechaEvento en rango) OR (tipo=NOTICIA y createdAt en rango)`
+      parameters:
+        - name: tipo
+          in: query
+          required: false
+          description: Filtra por tipo de publicación
+          schema:
+            type: string
+            enum: [NOTICIA, EVENTO]
+        - name: buscar
+          in: query
+          required: false
+          description: >-
+            Búsqueda parcial, case-insensitive y accent-insensitive (ignora tildes) en titulo, resumen y contenido. Vacío equivale a no filtrar.
+            Ej: `programacion` encuentra `programación`, `PROGRAMACION` también. Los caracteres `%`, `_` y `\` se buscan como literales.
+          schema:
+            type: string
+            maxLength: 100
+          example: programacion
+        - name: fechaDesde
+          in: query
+          required: false
+          description: Fecha desde (inclusive) en formato ISO datetime
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00.000Z"
+        - name: fechaHasta
+          in: query
+          required: false
+          description: Fecha hasta (inclusive) en formato ISO datetime
+          schema:
+            type: string
+            format: date-time
+          example: "2026-12-31T23:59:59.000Z"
+        - name: destacada
+          in: query
+          required: false
+          description: Filtra por destacada
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        "200":
+          description: Listado de publicaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Publicacion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    post:
+      tags: [Publicaciones]
+      summary: Crea una publicación
+      description: |
+        Crea una noticia o evento. El `slug` se genera automáticamente a partir del `titulo`
+        y se garantiza su unicidad (sufijo `-2`, `-3`, etc. si colisiona).
+
+        `autorId` no se envía en el body: se toma del usuario autenticado (JWT `sub`).
+
+        Reglas de `fechaEvento`:
+        - `tipo=EVENTO` → `fechaEvento` es obligatoria
+        - `tipo=NOTICIA` → `fechaEvento` queda en `null` (si se envía se ignora y se fuerza a null)
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublicacionInput" }
+      responses:
+        "201":
+          description: Publicación creada
+          headers:
+            Location:
+              description: URL de la publicación recién creada
+              schema: { type: string }
+              example: /api/publicaciones/clx1a2b3c4d5e6f7g8h9i0j1
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Publicacion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /publicaciones/{id}:
+    get:
+      tags: [Publicaciones]
+      summary: Obtiene una publicación por id
+      description: |
+        Endpoint público. Incluye los datos del autor (sin información sensible).
+        Si no existe devuelve 404.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la publicación
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: La publicación pedida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Publicacion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    patch:
+      tags: [Publicaciones]
+      summary: Modifica una publicación
+      description: |
+        Actualización **parcial**: se manda solo lo que cambia. Hay que enviar
+        al menos un campo, un body vacío es 400.
+
+        Campos modificables: `titulo`, `resumen`, `contenido`, `tipo`, `imagenUrl`, `fechaEvento`, `destacada`.
+        No se permite modificar manualmente `id`, `slug`, `autorId`, `createdAt`, `updatedAt`.
+
+        El `slug` permanece estable aunque cambie el `titulo`, para no romper URLs.
+
+        Para `destacada` basta con mandar `{"destacada": true}` o `false` en el PATCH normal;
+        no hay endpoint especial.
+
+        Contrato de nulos igual que Sedes:
+        | Lo que mandás | Qué pasa |
+        |---|---|
+        | omitís el campo | queda como estaba |
+        | `"resumen": null` | se borra el valor |
+        | `"resumen": ""` | **400** — para borrar se usa `null` |
+
+        Regla `fechaEvento`/`tipo` se valida sobre el **estado final** del registro
+        (combinando valores actuales con los nuevos). Por eso un PATCH que cambie
+        solo `tipo` a `EVENTO` sin `fechaEvento` dará 400 si el registro no tenía fecha,
+        y cambiar a `NOTICIA` fuerza `fechaEvento` a `null`.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la publicación
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublicacionUpdateInput" }
+      responses:
+        "200":
+          description: La publicación ya modificada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Publicacion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    delete:
+      tags: [Publicaciones]
+      summary: Elimina una publicación
+      description: |
+        Eliminación **física**: la fila se borra de la base (no hay `activa` ni `deletedAt` en este modelo).
+        Si no existe devuelve 404. Si se elimina correctamente devuelve 204 sin body.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la publicación
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "204":
+          description: Eliminada. Sin body.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
 components:
 
   securitySchemes:
@@ -818,6 +1043,149 @@ components:
           description: >-
             `false` significa que la carrera esta dada de baja. Viene igual en
             la respuesta.
+
+    Publicacion:
+      type: object
+      description: Noticia o evento del instituto.
+      required: [id, titulo, slug, contenido, tipo, destacada, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: cuid generado por la base.
+          examples: ["clx1a2b3c4d5e6f7g8h9i0j1"]
+        titulo:
+          type: string
+          examples: ["Jornada de Inteligencia Artificial 2026"]
+        slug:
+          type: string
+          description: Slug único generado a partir del título. Permanece estable aunque cambie el título.
+          examples: ["jornada-de-inteligencia-artificial-2026"]
+        resumen:
+          type: [string, "null"]
+          examples: ["Una jornada abierta para estudiantes."]
+        contenido:
+          type: string
+          examples: ["Contenido completo de la noticia..."]
+        tipo:
+          type: string
+          enum: [NOTICIA, EVENTO]
+          examples: ["EVENTO"]
+        imagenUrl:
+          type: [string, "null"]
+          format: uri
+          examples: ["https://example.com/imagen.jpg"]
+        fechaEvento:
+          type: [string, "null"]
+          format: date-time
+          description: Solo para EVENTO. En NOTICIA siempre es null.
+          examples: ["2026-10-20T18:00:00.000Z"]
+        destacada:
+          type: boolean
+          description: Si es destacada aparece primero o resaltada en el front.
+          examples: [true]
+        autorId:
+          type: [string, "null"]
+          description: CUID del autor (usuario que creó la publicación). Null si fue eliminado.
+        autor:
+          type: ["object", "null"]
+          description: Datos del autor sin información sensible. Solo id, nombre y apellido.
+          properties:
+            id:
+              type: string
+            nombre:
+              type: string
+            apellido:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PublicacionInput:
+      type: object
+      description: >-
+        Body para crear una publicación. El slug se genera automáticamente. No acepta campos que no estén
+        en esta lista: si mandás uno de más, la respuesta es 400. autorId no se envía, se toma del JWT.
+      required: [titulo, contenido, tipo]
+      additionalProperties: false
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+          examples: ["Jornada de Inteligencia Artificial 2026"]
+        resumen:
+          type: string
+          minLength: 1
+          maxLength: 500
+          examples: ["Una jornada abierta para estudiantes."]
+        contenido:
+          type: string
+          minLength: 1
+          examples: ["Contenido completo de la noticia..."]
+        tipo:
+          type: string
+          enum: [NOTICIA, EVENTO]
+          examples: ["EVENTO"]
+        imagenUrl:
+          type: string
+          format: uri
+          maxLength: 500
+          examples: ["https://example.com/imagen.jpg"]
+        fechaEvento:
+          type: string
+          format: date-time
+          description: Obligatoria si tipo=EVENTO. Debe ser null o omitirse si tipo=NOTICIA.
+          examples: ["2026-10-20T18:00:00.000Z"]
+        destacada:
+          type: boolean
+          default: false
+          examples: [true]
+
+    PublicacionUpdateInput:
+      type: object
+      description: >-
+        Body del PATCH. Todos los campos son opcionales, pero hay que mandar al menos uno.
+        resumen e imagenUrl aceptan `null` para borrar el valor. No acepta campos que no estén en esta lista.
+        Regla tipo/fechaEvento se valida sobre el estado final: EVENTO requiere fechaEvento, NOTICIA fuerza null.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+          examples: ["Jornada de Inteligencia Artificial 2026 - Actualizado"]
+        resumen:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 500
+          description: "`null` borra el resumen."
+          examples: ["Resumen actualizado."]
+        contenido:
+          type: string
+          minLength: 1
+          examples: ["Contenido actualizado..."]
+        tipo:
+          type: string
+          enum: [NOTICIA, EVENTO]
+          examples: ["NOTICIA"]
+        imagenUrl:
+          type: [string, "null"]
+          format: uri
+          maxLength: 500
+          description: "`null` borra la imagen."
+          examples: ["https://example.com/nueva-imagen.jpg"]
+        fechaEvento:
+          type: [string, "null"]
+          format: date-time
+          description: "`null` borra la fecha (solo válido si el estado final es NOTICIA)."
+          examples: ["2026-11-15T18:00:00.000Z"]
+        destacada:
+          type: boolean
+          examples: [false]
 
     Usuario:
       type: object
