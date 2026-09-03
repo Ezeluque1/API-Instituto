@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../config/prisma.js';
 import sedeRoutes from './sede.routes.js';
 import usuarioRoutes from './usuario.routes.js';
+import carreraRoutes from './carrera.routes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.get('/health', async (_req, res) => {
 // falten (carreras, publicaciones, contacto).
 router.use('/sedes', sedeRoutes);
 router.use('/usuarios', usuarioRoutes);
+router.use('/carreras', carreraRoutes);
 
 export default router;
