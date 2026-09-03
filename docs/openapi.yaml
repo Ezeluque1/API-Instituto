@@ -46,6 +46,8 @@ servers:
 tags:
   - name: Sedes
     description: Sedes donde se dictan las carreras
+  - name: Carreras
+    description: Carreras disponibles en el instituto
   - name: Usuarios
     description: Autenticación, perfil y administración de usuarios
   - name: Publicaciones
@@ -356,6 +358,76 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalError"
+
+    /carreras:
+    get:
+      tags: [Carreras]
+      summary: Lista todas las carreras
+      description: |
+        Devuelve todas las carreras activas ordenadas por nombre. Si no hay
+        ninguna devuelve `[]`, nunca un 404.
+
+        Permite buscar por nombre y filtrar por modalidad o sede.
+      parameters:
+        - name: buscar
+          in: query
+          required: false
+          description: >-
+            Filtra por nombre. Coincidencia parcial y sin distinguir
+            mayusculas. Vacio equivale a no filtrar.
+          schema:
+            type: string
+            maxLength: 80
+          example: software
+
+        - name: modalidad
+          in: query
+          required: false
+          description: Filtra por modalidad de cursado.
+          schema:
+            type: string
+            enum: [PRESENCIAL, VIRTUAL, HIBRIDA]
+
+        - name: sede
+          in: query
+          required: false
+          description: Filtra las carreras que se dictan en la sede indicada.
+          schema:
+            type: string
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+
+      responses:
+        "200":
+          description: Listado de carreras (array vacio si no hay ninguna)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Carrera" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /carreras/{id}:
+    get:
+      tags: [Carreras]
+      summary: Obtiene una carrera por id
+      description: Devuelve el detalle de una carrera activa. Una carrera dada de baja devuelve 404, igual que si no existiera. El endpoint es publico.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la carrera
+          schema: { type: string }
+          example: clc1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: La carrera pedida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Carrera" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /usuarios/login:
     post:
@@ -1012,6 +1084,64 @@ components:
                 required: [carrera]
                 properties:
                   carrera: { $ref: "#/components/schemas/CarreraResumen" }
+
+    Carrera:
+      type: object
+      description: Una carrera disponible en el instituto.
+      required:
+        - id
+        - nombre
+        - slug
+        - descripcion
+        - duracionAnios
+        - tituloOtorgado
+        - modalidad
+        - activa
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: cuid generado por la base.
+          examples: ["clc1a2b3c4d5e6f7g8h9i0j1"]
+
+        nombre:
+          type: string
+          examples: ["Tecnicatura Superior en Programacion"]
+
+        slug:
+          type: string
+          examples: ["tecnicatura-superior-en-programacion"]
+
+        descripcion:
+          type: [string, "null"]
+          examples: ["Carrera orientada al desarrollo de software."]
+
+        duracionAnios:
+          type: [integer, "null"]
+          examples: [3]
+
+        tituloOtorgado:
+          type: [string, "null"]
+          examples: ["Tecnico Superior en Programacion"]
+
+        modalidad:
+          type: string
+          enum: [PRESENCIAL, VIRTUAL, HIBRIDA]
+
+        activa:
+          type: boolean
+          description: >-
+            `false` significa que la carrera esta dada de baja. Por defecto
+            las carreras dadas de baja no aparecen en los endpoints publicos.
+
+        createdAt:
+          type: string
+          format: date-time
+
+        updatedAt:
+          type: string
+          format: date-time
 
     CarreraResumen:
       type: object
