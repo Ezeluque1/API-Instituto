@@ -192,13 +192,29 @@ export async function actualizar(id, datos) {
   await validarSedes(sedes);
 
   return prisma.$transaction(async (tx) => {
-    const { count } = await tx.carrera.updateMany({
-      where: { id, activa: true },
-      data: resto,
-    });
+    // Cuando el body trae SOLO `sedes`, `resto` queda vacio y un updateMany
+    // con `data: {}` devuelve count 0 aunque la fila exista. Tomar ese 0 como
+    // "no existe" hacia que cambiarle las sedes a una carrera (sin tocar
+    // ningun otro campo) devolviera 404. Por eso la existencia se chequea
+    // aparte cuando no hay nada escalar que escribir.
+    if (Object.keys(resto).length > 0) {
+      const { count } = await tx.carrera.updateMany({
+        where: { id, activa: true },
+        data: resto,
+      });
 
-    if (count === 0) {
-      throw ApiError.notFound('Carrera no encontrada');
+      if (count === 0) {
+        throw ApiError.notFound('Carrera no encontrada');
+      }
+    } else {
+      const existe = await tx.carrera.findFirst({
+        where: { id, activa: true },
+        select: { id: true },
+      });
+
+      if (!existe) {
+        throw ApiError.notFound('Carrera no encontrada');
+      }
     }
 
     if (sedes !== undefined) {
@@ -239,7 +255,13 @@ export async function darDeBaja(id) {
  * Los vinculos en CarreraSede se borran solos: el schema tiene
  * `onDelete: Cascade` en la relacion CarreraSede -> Carrera.
  *
+ * Las preinscripciones NO: esa FK es `onDelete: Restrict`, asi que si hay
+ * gente anotada la base rechaza el borrado y la carrera queda intacta. Es a
+ * proposito: borrarla en cascada haria desaparecer en silencio los datos de
+ * aspirantes reales.
+ *
  * @throws {ApiError} 404 si no existe.
+ * @throws {ApiError} 409 si tiene preinscripciones.
  */
 export async function eliminarDefinitivo(id) {
   try {
@@ -248,6 +270,27 @@ export async function eliminarDefinitivo(id) {
     if (error?.code === 'P2025') {
       throw ApiError.notFound('Carrera no encontrada');
     }
+
+    // P2003 = la base freno el borrado por una FK. Sin este bloque, el
+    // errorHandler devuelve el mensaje generico "La operacion viola una
+    // relacion con otro registro", que no le dice al ADMIN ni cual es el
+    // problema ni que hacer. Se cuenta para poder nombrarlo.
+    if (error?.code === 'P2003') {
+      const preinscripciones = await prisma.preinscripcion.count({
+        where: { carreraId: id },
+      });
+
+      if (preinscripciones > 0) {
+        throw ApiError.conflict(
+          `No se puede eliminar la carrera: tiene ${preinscripciones} ` +
+            `${preinscripciones === 1 ? 'preinscripcion' : 'preinscripciones'} asociada` +
+            `${preinscripciones === 1 ? '' : 's'}. Usa la baja logica (DELETE /carreras/:id) ` +
+            'para ocultarla sin perder los datos de los aspirantes.',
+          { preinscripciones },
+        );
+      }
+    }
+
     throw error;
   }
 }

@@ -90,6 +90,7 @@ model Carrera {
   updatedAt      DateTime  @updatedAt
 
   sedes          CarreraSede[]
+  preinscripciones Preinscripcion[]
 
   // Índices para listado, filtro y búsqueda por nombre/palabra clave
   @@index([nombre])
@@ -289,4 +290,52 @@ model Imagen {
   portadaDe Album?   @relation("AlbumPortada")
 
   @@index([albumId])
+}
+
+// ============================================================
+// PREINSCRIPCION
+// ============================================================
+
+model Preinscripcion {
+  id              String   @id @default(cuid())
+
+  nombre          String
+  apellido        String
+
+  // Se guarda normalizado (sin puntos, espacios ni guiones, en mayusculas)
+  // para que el unique de abajo sirva de verdad: "12.345.678" y "12345678"
+  // son la misma persona y tienen que chocar entre si.
+  documento       String
+
+  // @db.Date y no DateTime a secas: una fecha de nacimiento no tiene hora, y
+  // guardarla como timestamp la corre un dia entero segun la zona horaria.
+  fechaNacimiento DateTime @db.Date
+
+  nacionalidad    String
+
+  // Domicilio aplanado en tres columnas. No amerita una tabla aparte: no se
+  // consulta por si mismo ni se comparte con ningun otro registro.
+  direccion       String
+  localidad       String
+  provincia       String
+
+  telefono        String
+  email           String
+
+  // Restrict: si una carrera tiene gente anotada, no se puede borrar la
+  // carrera sin decidir antes que pasa con esas preinscripciones.
+  carreraId       String
+  carrera         Carrera  @relation(fields: [carreraId], references: [id], onDelete: Restrict)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Una persona no se preinscribe dos veces a la misma carrera, pero si puede
+  // anotarse a varias. Prisma tira P2002 al violarlo y el service lo traduce
+  // a un 409 con un mensaje entendible.
+  @@unique([documento, carreraId])
+
+  @@index([carreraId])
+  @@index([createdAt])
+  @@index([apellido, nombre])
 }
