@@ -192,13 +192,29 @@ export async function actualizar(id, datos) {
   await validarSedes(sedes);
 
   return prisma.$transaction(async (tx) => {
-    const { count } = await tx.carrera.updateMany({
-      where: { id, activa: true },
-      data: resto,
-    });
+    // Cuando el body trae SOLO `sedes`, `resto` queda vacio y un updateMany
+    // con `data: {}` devuelve count 0 aunque la fila exista. Tomar ese 0 como
+    // "no existe" hacia que cambiarle las sedes a una carrera (sin tocar
+    // ningun otro campo) devolviera 404. Por eso la existencia se chequea
+    // aparte cuando no hay nada escalar que escribir.
+    if (Object.keys(resto).length > 0) {
+      const { count } = await tx.carrera.updateMany({
+        where: { id, activa: true },
+        data: resto,
+      });
 
-    if (count === 0) {
-      throw ApiError.notFound('Carrera no encontrada');
+      if (count === 0) {
+        throw ApiError.notFound('Carrera no encontrada');
+      }
+    } else {
+      const existe = await tx.carrera.findFirst({
+        where: { id, activa: true },
+        select: { id: true },
+      });
+
+      if (!existe) {
+        throw ApiError.notFound('Carrera no encontrada');
+      }
     }
 
     if (sedes !== undefined) {
@@ -248,6 +264,7 @@ export async function eliminarDefinitivo(id) {
     if (error?.code === 'P2025') {
       throw ApiError.notFound('Carrera no encontrada');
     }
+
     throw error;
   }
 }
