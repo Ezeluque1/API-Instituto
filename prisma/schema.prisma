@@ -132,6 +132,7 @@ model Usuario {
 
   resetTokens   PasswordResetToken[]
   publicaciones Publicacion[]
+  albums        Album[]
   refreshTokens RefreshToken[]
 
   // Búsqueda admin por nombre, email o DNI
@@ -222,4 +223,70 @@ model MensajeContacto {
   @@index([nombre])
   @@index([email])
   @@index([estado])
+}
+// ============================================================
+// ALBUMS / GALERIA DE FOTOS
+// ============================================================
+
+model Album {
+  id          String    @id @default(cuid())
+  titulo      String
+  slug        String    @unique
+  descripcion String?
+
+  // Fecha del acto/evento que retrata el album, no la de carga.
+  fecha       DateTime?
+
+  // Visibilidad publica y baja logica en un solo campo, igual que Sede.activa:
+  // el listado publico filtra activo=true, DELETE lo pone en false y
+  // POST /reactivar lo vuelve a true. No hay un segundo flag de "publicado".
+  activo      Boolean   @default(true)
+
+  // Portada: apunta a una de las imagenes del album. Es nullable porque un
+  // album recien creado todavia no tiene fotos, y @unique porque Prisma pide
+  // unicidad del lado que guarda la FK para modelar un 1-1.
+  // Con la FK, "hay a lo sumo una portada" lo garantiza la base; con un
+  // booleano esPortada habria que sostenerlo a mano en cada escritura.
+  portadaId   String?   @unique
+  portada     Imagen?   @relation("AlbumPortada", fields: [portadaId], references: [id], onDelete: SetNull)
+
+  imagenes    Imagen[]  @relation("AlbumImagenes")
+
+  autorId     String?
+  autor       Usuario?  @relation(fields: [autorId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([activo])
+  @@index([fecha])
+  @@index([titulo])
+}
+
+model Imagen {
+  id        String   @id @default(cuid())
+
+  albumId   String
+  album     Album    @relation("AlbumImagenes", fields: [albumId], references: [id], onDelete: Cascade)
+
+  // Lo unico que consume el front.
+  url       String
+
+  // Identificador interno de Cloudinary. Sin esto el archivo no se puede
+  // borrar nunca de la nube: la URL sola no alcanza.
+  publicId  String   @unique
+
+  // Metadatos que devuelve Cloudinary al subir. Sirven para que el front
+  // reserve el espacio antes de que cargue la imagen y evite el salto de layout.
+  width     Int?
+  height    Int?
+  formato   String?
+  bytes     Int?
+
+  createdAt DateTime @default(now())
+
+  // Back-relation de Album.portada. No agrega ninguna columna a esta tabla.
+  portadaDe Album?   @relation("AlbumPortada")
+
+  @@index([albumId])
 }

@@ -14,6 +14,19 @@ const envSchema = z.object({
     .min(16, 'JWT_SECRET debe tener al menos 16 caracteres'),
   JWT_EXPIRES_IN: z.string().default('1d'),
   CORS_ORIGIN: z.string().default('*'),
+
+  // Cloudinary: donde se guardan las imagenes de los albums. Son obligatorias
+  // porque el equipo comparte una sola cuenta; si falta alguna es mejor no
+  // arrancar que descubrirlo recien cuando alguien intenta subir una foto.
+  CLOUDINARY_CLOUD_NAME: z
+    .string()
+    .min(1, 'CLOUDINARY_CLOUD_NAME es obligatoria'),
+  CLOUDINARY_API_KEY: z.string().min(1, 'CLOUDINARY_API_KEY es obligatoria'),
+  CLOUDINARY_API_SECRET: z
+    .string()
+    .min(1, 'CLOUDINARY_API_SECRET es obligatoria'),
+  // Carpeta raiz dentro de Cloudinary. Cada album cuelga de aca con su id.
+  CLOUDINARY_FOLDER: z.string().default('instituto/albums'),
 });
 
 const parsed = envSchema.safeParse(process.env);

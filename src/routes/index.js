@@ -4,6 +4,7 @@ import sedeRoutes from './sede.routes.js';
 import usuarioRoutes from './usuario.routes.js';
 import publicacionRoutes from './publicacion.routes.js';
 import carreraRoutes from './carrera.routes.js';
+import albumRoutes from './album.routes.js';
 
 const router = Router();
 
@@ -27,10 +28,11 @@ router.get('/health', async (_req, res) => {
 });
 
 // Un router por recurso. Mirar sede.routes.js como referencia para los que
-// falten (carreras, publicaciones, contacto).
+// falten (carreras, contacto).
 router.use('/sedes', sedeRoutes);
 router.use('/usuarios', usuarioRoutes);
 router.use('/publicaciones', publicacionRoutes);
 router.use('/carreras', carreraRoutes);
+router.use('/albums', albumRoutes);
 
 export default router;
