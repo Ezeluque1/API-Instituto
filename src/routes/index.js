@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma.js';
 import sedeRoutes from './sede.routes.js';
 import usuarioRoutes from './usuario.routes.js';
 import publicacionRoutes from './publicacion.routes.js';
+import carreraRoutes from './carrera.routes.js';
 import albumRoutes from './album.routes.js';
 import preinscripcionRoutes from './preinscripcion.routes.js';
 
@@ -32,6 +33,7 @@ router.get('/health', async (_req, res) => {
 router.use('/sedes', sedeRoutes);
 router.use('/usuarios', usuarioRoutes);
 router.use('/publicaciones', publicacionRoutes);
+router.use('/carreras', carreraRoutes);
 router.use('/albums', albumRoutes);
 router.use('/preinscripciones', preinscripcionRoutes);
 
