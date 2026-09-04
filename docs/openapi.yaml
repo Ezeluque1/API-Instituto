@@ -50,6 +50,8 @@ tags:
     description: Autenticación, perfil y administración de usuarios
   - name: Publicaciones
     description: Noticias y eventos del instituto
+  - name: Albums
+    description: Galerias de fotos del instituto
 
 # Las rutas se escriben SIN el prefijo `/api`: ya esta incluido en `servers`.
 # Es decir, el endpoint GET /api/sedes se documenta aca como `/sedes`.
@@ -60,6 +62,13 @@ paths:
   /sedes:
     get:
       tags: [Sedes]
+      security:
+        # Auth opcional: el endpoint es publico, pero si llega un token se usa
+        # (lo necesita `incluirInactivas`). El `{}` es lo que lo marca como
+        # opcional; sin la lista entera, Swagger UI NO manda el token aunque
+        # hayas apretado Authorize, y el request sale anonimo.
+        - {}
+        - bearerAuth: []
       summary: Lista todas las sedes
       description: |
         Devuelve todas las sedes ordenadas por nombre. Si no hay ninguna
@@ -166,6 +175,13 @@ paths:
   /sedes/{id}:
     get:
       tags: [Sedes]
+      security:
+        # Auth opcional: el endpoint es publico, pero si llega un token se usa
+        # (lo necesita `incluirInactivas`). El `{}` es lo que lo marca como
+        # opcional; sin la lista entera, Swagger UI NO manda el token aunque
+        # hayas apretado Authorize, y el request sale anonimo.
+        - {}
+        - bearerAuth: []
       summary: Obtiene una sede por id, con sus carreras
       description: |
         A diferencia del listado, el detalle incluye las carreras que se
@@ -848,6 +864,411 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+  /albums:
+    get:
+      tags: [Albums]
+      summary: Lista los álbumes de fotos
+      security:
+        # Auth opcional: el endpoint es publico, pero si llega un token se usa
+        # (lo necesita `incluirInactivos`). El `{}` es lo que lo marca como
+        # opcional; sin la lista entera, Swagger UI NO manda el token aunque
+        # hayas apretado Authorize, y el request sale anonimo.
+        - {}
+        - bearerAuth: []
+      description: |
+        Endpoint público. Devuelve **solo los álbumes activos**.
+
+        Cada álbum viene con su **portada** y con `cantidadImagenes`, pero
+        **no** con el array completo de fotos: para eso está el detalle. Listar
+        30 álbumes de 40 fotos con todo adentro serían 1200 objetos que la
+        grilla no muestra.
+
+        Orden: primero por la fecha del evento (más reciente arriba) y después
+        por fecha de carga. Los que no tienen fecha van al final.
+      parameters:
+        - name: incluirInactivos
+          in: query
+          required: false
+          description: >-
+            Con `true` incluye también los álbumes dados de baja. **Requiere
+            token con rol ADMIN**: sin él, la respuesta es 403. Solo se aceptan
+            los valores `true` y `false`; cualquier otro da 400.
+          schema:
+            type: string
+            enum: ["true", "false"]
+          example: "true"
+      responses:
+        "200":
+          description: Listado de álbumes (array vacío si no hay ninguno)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Album" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    post:
+      tags: [Albums]
+      summary: Crea un álbum vacío
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        Crea solo los metadatos: las fotos se suben después con
+        `POST /albums/{id}/imagenes`. El álbum nace **activo** y sin portada.
+
+        El `slug` se genera a partir del título y no se puede elegir. Si el
+        título se repite, se agrega un sufijo (`-2`, `-3`, ...). El autor sale
+        del token, nunca del body.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlbumInput" }
+      responses:
+        "201":
+          description: Álbum creado. El header `Location` apunta al recurso.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumDetalle" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /albums/{id}:
+    get:
+      tags: [Albums]
+      summary: Obtiene un álbum con todas sus fotos
+      security:
+        # Auth opcional: el endpoint es publico, pero si llega un token se usa
+        # (lo necesita `incluirInactivos`). El `{}` es lo que lo marca como
+        # opcional; sin la lista entera, Swagger UI NO manda el token aunque
+        # hayas apretado Authorize, y el request sale anonimo.
+        - {}
+        - bearerAuth: []
+      description: |
+        Endpoint público. A diferencia del listado, este **sí** trae el array
+        completo de `imagenes`, ordenado por fecha de subida.
+
+        Un álbum dado de baja **devuelve 404**, igual que si no existiera: un
+        403 estaría confirmando que existe. Con `incluirInactivos=true` se
+        devuelve de todos modos, pero eso exige un token de ADMIN.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del álbum
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+        - name: incluirInactivos
+          in: query
+          required: false
+          description: >-
+            Con `true` devuelve el álbum aunque esté dado de baja. **Requiere
+            token con rol ADMIN**: sin él, la respuesta es 403.
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        "200":
+          description: El álbum pedido, con sus imágenes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumDetalle" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    patch:
+      tags: [Albums]
+      summary: Modifica un álbum
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        Actualización parcial: se manda solo lo que cambia.
+
+        - omitir un campo → queda como estaba
+        - mandarlo en `null` → se borra (solo `descripcion` y `fecha`)
+        - mandarlo en `""` → 400; para borrar se usa `null`
+
+        **El `slug` no cambia aunque cambie el título**, a propósito: si
+        cambiara, se romperían las URLs ya publicadas.
+
+        Un álbum dado de baja devuelve 404: primero hay que reactivarlo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del álbum
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlbumUpdateInput" }
+      responses:
+        "200":
+          description: El álbum ya modificado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumDetalle" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    delete:
+      tags: [Albums]
+      summary: Da de baja un álbum (baja lógica)
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        **Es también el switch de visibilidad pública.** No borra nada: la fila
+        queda con `activo: false`, las fotos siguen en el servicio de imágenes
+        y se recupera todo con `POST /albums/{id}/reactivar`.
+
+        A partir de acá el álbum desaparece del listado público y su detalle
+        devuelve 404, salvo para un ADMIN que pase `incluirInactivos=true`.
+
+        Consecuencia a tener presente: **las fotos de un álbum dado de baja
+        siguen ocupando espacio en la nube para siempre**. Para liberarlo hay
+        que borrar las imágenes una por una con
+        `DELETE /albums/{id}/imagenes/{imagenId}`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del álbum
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "204":
+          description: Dado de baja. Sin body.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: El álbum no existe o ya estaba dado de baja.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /albums/{id}/reactivar:
+    post:
+      tags: [Albums]
+      summary: Vuelve a mostrar un álbum dado de baja
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        Es idempotente: reactivar un álbum que ya estaba activo devuelve 200 y
+        el álbum igual, sin error.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del álbum
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: El álbum, ya activo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumDetalle" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /albums/{id}/imagenes:
+    post:
+      tags: [Albums]
+      summary: Sube fotos al álbum
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        `multipart/form-data`. Los archivos van en el campo **`imagenes`**; se
+        pueden mandar varios en el mismo request.
+
+        El backend recibe el archivo, lo sube al servicio de imágenes y guarda
+        en la base **solo la URL**. El archivo nunca se guarda en el disco del
+        servidor.
+
+        Límites:
+
+        | | |
+        |---|---|
+        | Tamaño por archivo | 5 MB (`413` si se pasa) |
+        | Archivos por request | 5 (`400` si se pasa) |
+        | Formatos | JPEG, PNG, WebP, AVIF |
+
+        **La primera foto de un álbum sin portada queda de portada
+        automáticamente**, para que el álbum no se vea vacío en el listado.
+
+        Es todo o nada: si falla la subida de una, no se guarda ninguna y se
+        limpia lo que ya se había subido.
+
+        Devuelve el **álbum entero** y no solo las fotos nuevas, porque subir
+        puede haber cambiado la portada y así el front se entera sin pedir el
+        álbum de nuevo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del álbum
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [imagenes]
+              properties:
+                imagenes:
+                  type: array
+                  description: De 1 a 5 archivos de imagen.
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: binary
+            encoding:
+              imagenes:
+                contentType: image/jpeg, image/png, image/webp, image/avif
+      responses:
+        "201":
+          description: El álbum con las fotos ya cargadas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumDetalle" }
+        "400":
+          description: >-
+            No vino ningún archivo, el campo del formulario no se llama
+            `imagenes`, el formato no está permitido o se mandaron más de 5.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: >-
+            El álbum está dado de baja. Hay que reactivarlo antes de subirle
+            fotos.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "502":
+          description: El servicio de imágenes no respondió. No se guardó nada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /albums/{id}/imagenes/{imagenId}:
+    delete:
+      tags: [Albums]
+      summary: Borra una foto del álbum
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        **Es el único borrado físico del módulo**: saca la fila de la base *y*
+        el archivo de la nube. No se puede deshacer.
+
+        Si la foto era la portada, se promueve automáticamente la más antigua
+        de las que quedan, así el álbum no se ve vacío en el listado.
+
+        Devuelve 404 si la foto no pertenece a **ese** álbum, aunque exista en
+        otro.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del álbum
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+        - name: imagenId
+          in: path
+          required: true
+          description: cuid de la imagen
+          schema: { type: string }
+          example: clx9z8y7x6w5v4u3t2s1r0q9
+      responses:
+        "204":
+          description: Borrada. Sin body.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: La imagen no existe en ese álbum.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /albums/{id}/portada:
+    patch:
+      tags: [Albums]
+      summary: Elige qué foto se muestra como portada
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        La imagen tiene que pertenecer a **ese** álbum: si el `imagenId` existe
+        pero es de otro, devuelve 404 y la portada no cambia.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del álbum
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PortadaInput" }
+      responses:
+        "200":
+          description: El álbum con la portada ya cambiada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumDetalle" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: La imagen no existe en ese álbum.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+
 components:
 
   securitySchemes:
@@ -1187,6 +1608,163 @@ components:
           type: boolean
           examples: [false]
 
+    Imagen:
+      type: object
+      description: |
+        Una foto de un álbum. `url` es lo único que necesita el front; el
+        identificador interno del servicio de imágenes no se expone, porque
+        borrar es cosa de la API.
+      required: [id, url, createdAt]
+      properties:
+        id: { type: string, example: clx9z8y7x6w5v4u3t2s1r0q9 }
+        url:
+          type: string
+          format: uri
+          description: URL pública de la imagen, servida por CDN.
+          example: https://res.cloudinary.com/demo/image/upload/v1/instituto/albums/clx1a2/foto.jpg
+        width:
+          type: [integer, "null"]
+          description: >-
+            Ancho en píxeles. Sirve para que el front reserve el espacio antes
+            de que cargue la foto y evite el salto de layout.
+          example: 1600
+        height:
+          type: [integer, "null"]
+          example: 1067
+        formato:
+          type: [string, "null"]
+          example: jpg
+        bytes:
+          type: [integer, "null"]
+          description: Peso del archivo original.
+          example: 482913
+        createdAt: { type: string, format: date-time }
+
+    Album:
+      type: object
+      description: |
+        Un álbum tal como sale en el **listado**: con su portada y el total de
+        fotos, pero sin el array completo. Para las fotos, `AlbumDetalle`.
+      required: [id, titulo, slug, activo, cantidadImagenes, createdAt, updatedAt]
+      properties:
+        id: { type: string, example: clx1a2b3c4d5e6f7g8h9i0j1 }
+        titulo: { type: string, example: Acto de colación 2026 }
+        slug:
+          type: string
+          description: >-
+            Se genera del título y no se puede elegir ni modificar. Si el
+            título se repite se agrega un sufijo (`-2`, `-3`, ...).
+          example: acto-de-colacion-2026
+        descripcion:
+          type: [string, "null"]
+          example: Fotos del acto de colación de la promoción 2026.
+        fecha:
+          type: [string, "null"]
+          format: date-time
+          description: Fecha del evento que retrata el álbum, no la de carga.
+          example: "2026-08-15T18:00:00.000Z"
+        activo:
+          type: boolean
+          description: >-
+            Si es `false` el álbum está dado de baja: no aparece en el listado
+            público y su detalle devuelve 404.
+          example: true
+        portadaId: { type: [string, "null"] }
+        portada:
+          description: La foto que se muestra en el listado. `null` si el álbum no tiene fotos.
+          oneOf:
+            - $ref: "#/components/schemas/Imagen"
+            - type: "null"
+        cantidadImagenes:
+          type: integer
+          description: Total de fotos del álbum.
+          example: 24
+        autorId: { type: [string, "null"] }
+        autor:
+          description: Quién lo creó. `null` si el usuario fue eliminado.
+          oneOf:
+            - type: object
+              properties:
+                id: { type: string }
+                nombre: { type: string }
+                apellido: { type: string }
+            - type: "null"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AlbumDetalle:
+      description: |
+        Lo mismo que `Album` más el array completo de `imagenes`, ordenado por
+        fecha de subida. Es lo que devuelve el detalle y todas las escrituras.
+      allOf:
+        - $ref: "#/components/schemas/Album"
+        - type: object
+          required: [imagenes]
+          properties:
+            imagenes:
+              type: array
+              items: { $ref: "#/components/schemas/Imagen" }
+
+    AlbumInput:
+      type: object
+      description: |
+        Body del POST. Solo metadatos: las fotos van por
+        `POST /albums/{id}/imagenes`.
+
+        No acepta campos de más (da 400). `slug`, `activo` y el autor los pone
+        la API.
+      required: [titulo]
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Acto de colación 2026
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          example: Fotos del acto de colación de la promoción 2026.
+        fecha:
+          type: string
+          format: date-time
+          description: Fecha del evento, en ISO 8601 con offset.
+          example: "2026-08-15T18:00:00.000Z"
+
+    AlbumUpdateInput:
+      type: object
+      description: |
+        Body del PATCH. Al menos un campo, y no acepta campos de más.
+
+        - omitir → queda como estaba
+        - `null` → borra el valor
+        - `""` → 400; para borrar se usa `null`
+
+        `slug` no se puede modificar y tampoco cambia solo al cambiar el título.
+      minProperties: 1
+      properties:
+        titulo:
+          type: string
+          minLength: 1
+          maxLength: 200
+        descripcion:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 2000
+        fecha:
+          type: [string, "null"]
+          format: date-time
+
+    PortadaInput:
+      type: object
+      description: Body del PATCH /albums/{id}/portada.
+      required: [imagenId]
+      properties:
+        imagenId:
+          type: string
+          description: cuid de una imagen **de ese mismo álbum**.
+          example: clx9z8y7x6w5v4u3t2s1r0q9
+
     Usuario:
       type: object
       properties:
@@ -1462,6 +2040,14 @@ components:
       description: >-
         Choca con un registro existente: campo unico duplicado (Prisma P2002) o
         una relacion que impide la operacion (P2003).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    PayloadTooLarge:
+      description: >-
+        Algun archivo supera el limite de 5 MB. No se guardo ninguno.
       content:
         application/json:
           schema:

@@ -1,47 +1,23 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import { publicacionSelect } from '../models/publicacion.model.js';
+import { generarSlugUnico } from '../utils/slug.js';
 
 /**
- * Convierte un titulo en un slug url-friendly.
- * - minusculas
- * - normaliza y elimina acentos
- * - reemplaza todo lo no alfanumerico por "-"
- * - colapsa guiones y recorta extremos
+ * Genera un slug unico para una publicacion.
+ * La logica vive en utils/slug.js; aca solo se aporta como se consulta la
+ * existencia en esta tabla.
  */
-function slugify(texto) {
-  const base = texto
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/-{2,}/g, '-');
-
-  return base || 'publicacion';
-}
-
-/**
- * Genera un slug unico a partir del titulo.
- * Si ya existe, agrega sufijo incremental "-2", "-3", etc.
- */
-async function generarSlugUnico(titulo) {
-  const base = slugify(titulo);
-  let slug = base;
-  let contador = 2;
-
-  // Loop deterministico: busca colision y prueba siguiente sufijo.
-  // Es una sola query por intento, en el caso feliz solo una.
-  while (true) {
-    const existente = await prisma.publicacion.findUnique({
-      where: { slug },
-      select: { id: true },
-    });
-    if (!existente) return slug;
-    slug = `${base}-${contador++}`;
-  }
+function generarSlugPublicacion(titulo) {
+  return generarSlugUnico(
+    titulo,
+    async (slug) =>
+      (await prisma.publicacion.findUnique({
+        where: { slug },
+        select: { id: true },
+      })) !== null,
+    'publicacion',
+  );
 }
 
 /**
@@ -204,7 +180,7 @@ export async function crear(datos, autorId) {
   // Reintento pequeño para condicion de carrera en slug (P2002).
   // Sin dependencia extra: genera siguiente sufijo incremental y reintenta.
   for (let intento = 0; intento < 3; intento++) {
-    const slug = await generarSlugUnico(datos.titulo);
+    const slug = await generarSlugPublicacion(datos.titulo);
     try {
       return await prisma.publicacion.create({
         data: { ...dataBase, slug },
