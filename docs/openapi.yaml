@@ -52,6 +52,8 @@ tags:
     description: Noticias y eventos del instituto
   - name: Albums
     description: Galerias de fotos del instituto
+  - name: Preinscripciones
+    description: Aspirantes que se anotan a una carrera desde la web
 
 # Las rutas se escriben SIN el prefijo `/api`: ya esta incluido en `servers`.
 # Es decir, el endpoint GET /api/sedes se documenta aca como `/sedes`.
@@ -1269,6 +1271,84 @@ paths:
         "500": { $ref: "#/components/responses/InternalError" }
 
 
+  /preinscripciones:
+    post:
+      tags: [Preinscripciones]
+      summary: Crea una preinscripción a una carrera
+      description: |
+        **Endpoint público, sin token.** Es el formulario de la web: el
+        aspirante todavía no es alumno y no tiene cuenta.
+
+        El `carreraId` tiene que ser el de una carrera **activa**. Si no
+        existe devuelve 404; si está dada de baja, 409.
+
+        El **documento se normaliza** antes de guardarse: se le sacan puntos,
+        espacios y guiones y se pasa a mayúsculas. Por eso `30.111.222` y
+        `30111222` son el mismo documento y el segundo choca con el primero.
+
+        **Una persona no puede preinscribirse dos veces a la misma carrera**
+        (409), pero sí puede anotarse a varias carreras distintas.
+
+        `fechaNacimiento` va **solo como fecha** (`1990-05-15`), no como
+        datetime: una fecha de nacimiento no tiene hora, y mandar una obligaría
+        a decidir en qué zona horaria interpretarla.
+      responses:
+        "201":
+          description: |
+            La preinscripción creada, con la carrera anidada.
+
+            No trae header `Location`: no existe un `GET /preinscripciones/{id}`
+            al que apuntar.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Preinscripcion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404":
+          description: La carrera indicada no existe.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: >-
+            La carrera está dada de baja, o ya hay una preinscripción con ese
+            documento para esa carrera.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PreinscripcionInput" }
+
+    get:
+      tags: [Preinscripciones]
+      summary: Lista todas las preinscripciones
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        Es privado a propósito y no admite excepción: cada fila trae documento,
+        fecha de nacimiento, domicilio y teléfono de una persona que ni
+        siquiera es alumno todavía.
+
+        Orden: de la más nueva a la más vieja.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Listado de preinscripciones (array vacío si no hay ninguna)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Preinscripcion" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+
 components:
 
   securitySchemes:
@@ -1764,6 +1844,100 @@ components:
           type: string
           description: cuid de una imagen **de ese mismo álbum**.
           example: clx9z8y7x6w5v4u3t2s1r0q9
+
+    Preinscripcion:
+      type: object
+      description: |
+        Una preinscripción de un aspirante a una carrera. Contiene datos
+        personales, por eso el listado es solo para ADMIN.
+      required:
+        [id, nombre, apellido, documento, fechaNacimiento, nacionalidad,
+         direccion, localidad, provincia, telefono, email, carreraId,
+         createdAt, updatedAt]
+      properties:
+        id: { type: string, examples: ["clp1a2b3c4d5e6f7g8h9i0j1"] }
+        nombre: { type: string, examples: ["Ana"] }
+        apellido: { type: string, examples: ["Perez"] }
+        documento:
+          type: string
+          description: >-
+            Normalizado: sin puntos, espacios ni guiones, en mayúsculas. Se
+            devuelve tal como quedó guardado, no como se escribió.
+          examples: ["30111222"]
+        fechaNacimiento:
+          type: string
+          format: date
+          description: Solo la fecha, sin hora ni zona horaria.
+          examples: ["1995-03-20"]
+        nacionalidad: { type: string, examples: ["Argentina"] }
+        direccion: { type: string, examples: ["San Martin 450"] }
+        localidad: { type: string, examples: ["Rio Cuarto"] }
+        provincia: { type: string, examples: ["Cordoba"] }
+        telefono: { type: string, examples: ["+54 358 4123456"] }
+        email:
+          type: string
+          format: email
+          description: Se guarda en minúsculas.
+          examples: ["ana.perez@example.com"]
+        carreraId: { type: string, examples: ["clc1a2b3c4d5e6f7g8h9i0j1"] }
+        carrera:
+          description: La carrera a la que se anotó, en su versión reducida.
+          $ref: "#/components/schemas/CarreraResumen"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PreinscripcionInput:
+      type: object
+      description: |
+        Body del POST. Todos los campos son obligatorios y no acepta campos de
+        más (da 400).
+
+        El `id`, las fechas de auditoría y la forma normalizada del documento
+        los pone la API.
+      required:
+        [nombre, apellido, documento, fechaNacimiento, nacionalidad, direccion,
+         localidad, provincia, telefono, email, carreraId]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 80, examples: ["Ana"] }
+        apellido: { type: string, minLength: 1, maxLength: 80, examples: ["Perez"] }
+        documento:
+          type: string
+          minLength: 6
+          maxLength: 20
+          pattern: "^[0-9A-Za-z.\\-\\s]+$"
+          description: >-
+            Admite letras a propósito: no todo aspirante tiene DNI argentino
+            (pasaporte, cédula de otro país). Se puede escribir con puntos; se
+            guarda sin ellos.
+          examples: ["30.111.222"]
+        fechaNacimiento:
+          type: string
+          format: date
+          description: >-
+            `YYYY-MM-DD`. Un datetime completo da 400. No puede ser futura ni
+            de hace más de 120 años.
+          examples: ["1995-03-20"]
+        nacionalidad: { type: string, minLength: 1, maxLength: 60, examples: ["Argentina"] }
+        direccion: { type: string, minLength: 1, maxLength: 150, examples: ["San Martin 450"] }
+        localidad: { type: string, minLength: 1, maxLength: 80, examples: ["Rio Cuarto"] }
+        provincia: { type: string, minLength: 1, maxLength: 80, examples: ["Cordoba"] }
+        telefono:
+          type: string
+          minLength: 7
+          maxLength: 25
+          pattern: "^[0-9+\\-()\\s]+$"
+          examples: ["+54 358 4123456"]
+        email:
+          type: string
+          format: email
+          maxLength: 150
+          examples: ["ana.perez@example.com"]
+        carreraId:
+          type: string
+          description: >-
+            cuid de una carrera **activa**. Hoy no hay endpoint para listar
+            carreras, así que el front todavía no tiene de dónde sacarlo.
+          examples: ["clc1a2b3c4d5e6f7g8h9i0j1"]
 
     Usuario:
       type: object
