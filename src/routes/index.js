@@ -4,6 +4,7 @@ import sedeRoutes from './sede.routes.js';
 import usuarioRoutes from './usuario.routes.js';
 import publicacionRoutes from './publicacion.routes.js';
 import albumRoutes from './album.routes.js';
+import preinscripcionRoutes from './preinscripcion.routes.js';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/sedes', sedeRoutes);
 router.use('/usuarios', usuarioRoutes);
 router.use('/publicaciones', publicacionRoutes);
 router.use('/albums', albumRoutes);
+router.use('/preinscripciones', preinscripcionRoutes);
 
 export default router;
