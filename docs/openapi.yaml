@@ -62,6 +62,13 @@ paths:
   /sedes:
     get:
       tags: [Sedes]
+      security:
+        # Auth opcional: el endpoint es publico, pero si llega un token se usa
+        # (lo necesita `incluirInactivas`). El `{}` es lo que lo marca como
+        # opcional; sin la lista entera, Swagger UI NO manda el token aunque
+        # hayas apretado Authorize, y el request sale anonimo.
+        - {}
+        - bearerAuth: []
       summary: Lista todas las sedes
       description: |
         Devuelve todas las sedes ordenadas por nombre. Si no hay ninguna
@@ -168,6 +175,13 @@ paths:
   /sedes/{id}:
     get:
       tags: [Sedes]
+      security:
+        # Auth opcional: el endpoint es publico, pero si llega un token se usa
+        # (lo necesita `incluirInactivas`). El `{}` es lo que lo marca como
+        # opcional; sin la lista entera, Swagger UI NO manda el token aunque
+        # hayas apretado Authorize, y el request sale anonimo.
+        - {}
+        - bearerAuth: []
       summary: Obtiene una sede por id, con sus carreras
       description: |
         A diferencia del listado, el detalle incluye las carreras que se
