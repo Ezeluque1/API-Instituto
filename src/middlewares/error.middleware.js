@@ -1,7 +1,13 @@
 import { Prisma } from '@prisma/client';
+import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
+import {
+  CAMPO_IMAGENES,
+  MAX_BYTES_POR_IMAGEN,
+  MAX_IMAGENES_POR_REQUEST,
+} from './upload.middleware.js';
 
 /** Se monta despues de todas las rutas: cualquier URL que no matcheo cae aca. */
 export function notFoundHandler(req, _res, next) {
@@ -34,6 +40,8 @@ export function errorHandler(error, _req, res, _next) {
   } else if (error instanceof Prisma.PrismaClientValidationError) {
     statusCode = 400;
     message = 'Consulta invalida a la base de datos';
+  } else if (error instanceof MulterError) {
+    ({ statusCode, message, details } = mapMulterError(error));
   } else if (error.type === 'entity.parse.failed') {
     // Body con JSON mal formado (lo lanza express.json()).
     statusCode = 400;
@@ -51,6 +59,41 @@ export function errorHandler(error, _req, res, _next) {
     ...(details && { details }),
     ...(env.isDev && { stack: error.stack }),
   });
+}
+
+/**
+ * Traduce los errores de multer (subida de archivos) a respuestas utiles.
+ * Sin esto, un archivo demasiado grande sale como 500 generico y el front no
+ * tiene forma de decirle al usuario que achique la foto.
+ */
+function mapMulterError(error) {
+  switch (error.code) {
+    case 'LIMIT_FILE_SIZE':
+      return {
+        statusCode: 413,
+        message: `Cada imagen puede pesar hasta ${MAX_BYTES_POR_IMAGEN / 1024 / 1024} MB`,
+        details: { campo: error.field ?? null },
+      };
+    case 'LIMIT_FILE_COUNT':
+    case 'LIMIT_PART_COUNT':
+      return {
+        statusCode: 400,
+        message: `Se pueden subir hasta ${MAX_IMAGENES_POR_REQUEST} imagenes por vez`,
+        details: null,
+      };
+    case 'LIMIT_UNEXPECTED_FILE':
+      return {
+        statusCode: 400,
+        message: `Los archivos tienen que venir en el campo "${CAMPO_IMAGENES}" del formulario`,
+        details: { campoRecibido: error.field ?? null },
+      };
+    default:
+      return {
+        statusCode: 400,
+        message: 'No se pudo procesar el archivo subido',
+        details: env.isDev ? { code: error.code } : null,
+      };
+  }
 }
 
 /** Traduce los codigos de error de Prisma a respuestas HTTP con sentido. */

@@ -27,8 +27,7 @@ router.get('/health', async (_req, res) => {
   });
 });
 
-// Un router por recurso. Mirar sede.routes.js como referencia para los que
-// falten.
+// Un router por recurso. Mirar sede.routes.js como referencia.
 router.use('/sedes', sedeRoutes);
 router.use('/usuarios', usuarioRoutes);
 router.use('/publicaciones', publicacionRoutes);
