@@ -50,6 +50,8 @@ tags:
     description: Autenticación, perfil y administración de usuarios
   - name: Publicaciones
     description: Noticias y eventos del instituto
+  - name: Contacto
+    description: Mensajes recibidos desde el formulario de contacto
 
 # Las rutas se escriben SIN el prefijo `/api`: ya esta incluido en `servers`.
 # Es decir, el endpoint GET /api/sedes se documenta aca como `/sedes`.
@@ -848,6 +850,158 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+  /contacto:
+    post:
+      tags: [Contacto]
+      summary: Envía un mensaje de contacto
+      description: |
+        Endpoint **público**, sin autenticación: es el formulario de contacto
+        del sitio. El mensaje nace en estado `NO_LEIDO`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MensajeContactoInput" }
+      responses:
+        "201":
+          description: Mensaje de contacto creado
+          headers:
+            Location:
+              description: URL del mensaje recien creado
+              schema: { type: string }
+              example: /api/contacto/clx1a2b3c4d5e6f7g8h9i0j1
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MensajeContacto" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    get:
+      tags: [Contacto]
+      summary: Lista los mensajes de contacto
+      description: |
+        Devuelve todos los mensajes, ordenados por `createdAt` descendente
+        (mas recientes primero). Si no hay ninguno devuelve `[]`, nunca 404.
+
+        Filtro opcional por `estado`.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          description: Filtra por estado del mensaje.
+          schema:
+            type: string
+            enum: [NO_LEIDO, LEIDO, RESPONDIDO]
+      responses:
+        "200":
+          description: Listado de mensajes de contacto (array vacio si no hay ninguno)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MensajeContacto" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /contacto/{id}:
+    get:
+      tags: [Contacto]
+      summary: Obtiene un mensaje de contacto por id
+      description: |
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del mensaje de contacto
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: El mensaje de contacto pedido
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MensajeContacto" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    patch:
+      tags: [Contacto]
+      summary: Marca como leido o responde un mensaje de contacto
+      description: |
+        Actualizacion **parcial**: se manda solo lo que cambia (`estado` y/o
+        `respuesta`). Hay que enviar al menos un campo, un body vacio es 400.
+
+        Si se envia `respuesta` y el mensaje **todavia no tenia una respuesta
+        previa**, se fija automaticamente `respondidoAt = now()` y
+        `estado = RESPONDIDO`, sin importar que otro `estado` se haya mandado
+        en el mismo body.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del mensaje de contacto
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MensajeContactoUpdateInput" }
+      responses:
+        "200":
+          description: El mensaje de contacto ya modificado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MensajeContacto" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    delete:
+      tags: [Contacto]
+      summary: Elimina un mensaje de contacto
+      description: |
+        Eliminacion **fisica**: la fila se borra de la base (no hay soft
+        delete en este modelo). Si no existe devuelve 404. Si se elimina
+        correctamente devuelve 204 sin body.
+
+        **Requiere token con rol ADMIN.**
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid del mensaje de contacto
+          schema: { type: string }
+          example: clx1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "204":
+          description: Eliminado. Sin body.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
 components:
 
   securitySchemes:
@@ -1186,6 +1340,110 @@ components:
         destacada:
           type: boolean
           examples: [false]
+
+    MensajeContacto:
+      type: object
+      description: Un mensaje enviado desde el formulario de contacto.
+      required: [id, nombre, email, mensaje, estado, createdAt]
+      properties:
+        id:
+          type: string
+          description: cuid generado por la base.
+          examples: ["clx1a2b3c4d5e6f7g8h9i0j1"]
+        nombre:
+          type: string
+          examples: ["Maria Gomez"]
+        email:
+          type: string
+          format: email
+          examples: ["maria.gomez@example.com"]
+        telefono:
+          type: [string, "null"]
+          examples: ["+54 351 4567890"]
+        asunto:
+          type: [string, "null"]
+          examples: ["Consulta sobre inscripcion"]
+        mensaje:
+          type: string
+          examples: ["Queria saber si todavia estan abiertas las inscripciones para el ciclo 2026."]
+        estado:
+          type: string
+          enum: [NO_LEIDO, LEIDO, RESPONDIDO]
+          description: >-
+            Nace en `NO_LEIDO`. Pasa a `RESPONDIDO` automaticamente en cuanto
+            se carga una `respuesta` por primera vez.
+        respuesta:
+          type: [string, "null"]
+          description: Texto de la respuesta del admin. Null hasta que se responde.
+          examples: ["Hola Maria, si, las inscripciones siguen abiertas hasta fin de mes."]
+        respondidoAt:
+          type: [string, "null"]
+          format: date-time
+          description: Se fija automaticamente al cargar la primera respuesta. Null hasta entonces.
+        createdAt:
+          type: string
+          format: date-time
+
+    MensajeContactoInput:
+      type: object
+      description: >-
+        Body del POST /contacto. Es el formulario publico: no incluye
+        `estado`, siempre nace en `NO_LEIDO`. No acepta campos que no esten en
+        esta lista.
+      required: [nombre, email, mensaje]
+      additionalProperties: false
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          examples: ["Maria Gomez"]
+        email:
+          type: string
+          format: email
+          maxLength: 120
+          examples: ["maria.gomez@example.com"]
+        telefono:
+          type: string
+          minLength: 1
+          maxLength: 30
+          examples: ["+54 351 4567890"]
+        asunto:
+          type: string
+          minLength: 1
+          maxLength: 150
+          examples: ["Consulta sobre inscripcion"]
+        mensaje:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          examples: ["Queria saber si todavia estan abiertas las inscripciones para el ciclo 2026."]
+
+    MensajeContactoUpdateInput:
+      type: object
+      description: >-
+        Body del PATCH /contacto/{id}. Todos los campos son opcionales, pero
+        hay que mandar al menos uno. No acepta campos que no esten en esta
+        lista.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        estado:
+          type: string
+          enum: [NO_LEIDO, LEIDO, RESPONDIDO]
+          description: >-
+            Se puede setear a mano, por ejemplo para marcar `LEIDO` sin
+            responder todavia.
+          examples: ["LEIDO"]
+        respuesta:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: >-
+            Si el mensaje no tenia una respuesta previa, cargarla fuerza
+            `estado = RESPONDIDO` y fija `respondidoAt`, aunque en el mismo
+            body se haya mandado otro `estado`.
+          examples: ["Hola Maria, si, las inscripciones siguen abiertas hasta fin de mes."]
 
     Usuario:
       type: object
