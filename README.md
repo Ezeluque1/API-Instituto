@@ -55,6 +55,15 @@ Y editar el `.env` recien creado:
   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
   ```
 
+- **`CLOUDINARY_*`**: son las credenciales de la cuenta de Cloudinary donde se
+  suben las fotos de los albums. **El equipo usa una sola cuenta compartida**:
+  pedile las tres a quien la creo y pegalas tal cual. Estan en el dashboard de
+  Cloudinary, arriba de todo, en *Product Environment Credentials*.
+
+  Son obligatorias: **sin ellas el server no arranca**, aunque no vayas a tocar
+  el modulo de albums. Es a proposito, para que nadie descubra que faltan recien
+  cuando alguien intenta subir una foto.
+
 El `.env` esta en el `.gitignore`: **nunca** se commitea. Si agregas una
 variable nueva, sumala tambien a `.env.example` (sin el valor real) para que al
 resto no le falte.
@@ -220,6 +229,10 @@ Un par de detalles:
 | `JWT_SECRET` | Secreto para firmar los tokens (min. 16 caracteres) | — (obligatoria) |
 | `JWT_EXPIRES_IN` | Duracion del token | `1d` |
 | `CORS_ORIGIN` | `*` o lista de origenes separada por comas | `*` |
+| `CLOUDINARY_CLOUD_NAME` | Cuenta de Cloudinary donde se suben las fotos | — (obligatoria) |
+| `CLOUDINARY_API_KEY` | Credencial de Cloudinary | — (obligatoria) |
+| `CLOUDINARY_API_SECRET` | Credencial de Cloudinary. **No se comparte fuera del equipo** | — (obligatoria) |
+| `CLOUDINARY_FOLDER` | Carpeta raiz dentro de Cloudinary | `instituto/albums` |
 
 `src/config/env.js` las valida con Zod al arrancar: si falta alguna, el proceso
 muere con un mensaje claro en vez de fallar despues con un `undefined`.
@@ -232,9 +245,9 @@ src/
 ├── models/        Schemas de Zod + `select` de Prisma reutilizables
 ├── routes/        Definen endpoints y encadenan middlewares
 ├── services/      Logica de negocio + consultas Prisma
-├── middlewares/   Errores, validacion, autenticacion, respuestas
-├── config/        Variables de entorno, cliente de Prisma y carga del spec
-├── utils/         ApiError, JWT, hashing de passwords
+├── middlewares/   Errores, validacion, autenticacion, respuestas, subida de archivos
+├── config/        Variables de entorno, clientes de Prisma y Cloudinary, carga del spec
+├── utils/         ApiError, JWT, hashing de passwords, slugs
 ├── app.js         Arma la app de Express y la exporta
 └── server.js      Hace el listen() y el apagado ordenado
 
@@ -357,6 +370,50 @@ Si ademas cambias `prisma/schema.prisma`, correr `npm run prisma:migrate` para
 generar la migracion y commitear la carpeta `prisma/migrations/`: es lo que
 Render aplica en produccion.
 
+## Imagenes (albums)
+
+Las fotos **no se guardan en el servidor**. El flujo es:
+
+```
+navegador --(multipart)--> API --> Cloudinary
+                            |
+                            +--> Postgres: solo la URL
+```
+
+El disco de Render es efimero y se borra en cada deploy, asi que una foto
+escrita ahi se perderia. La API recibe el archivo en memoria, lo manda a
+Cloudinary por stream y guarda en la base la URL publica mas el identificador
+interno que hace falta para poder borrarlo despues.
+
+Limites, definidos en `src/middlewares/upload.middleware.js`:
+
+| | |
+|---|---|
+| Tamano por archivo | 5 MB |
+| Archivos por request | 5 |
+| Formatos | JPEG, PNG, WebP, AVIF |
+
+Los numeros son bajos a proposito: los archivos viven **enteros en RAM** hasta
+que terminan de subirse, y la instancia free de Render tiene 512 MB.
+
+**Miniaturas: no hay que generarlas.** Cloudinary las arma desde la misma URL
+insertando transformaciones. Para una tarjeta de 400px de ancho:
+
+```
+https://res.cloudinary.com/<cuenta>/image/upload/w_400,q_auto,f_auto/<resto>
+```
+
+No consume storage extra y es trabajo del front.
+
+**Que se borra y que no.** `DELETE /api/albums/:id` es una **baja logica**: el
+album deja de verse, pero sus fotos siguen ocupando lugar en Cloudinary. El
+unico borrado real es `DELETE /api/albums/:id/imagenes/:imagenId`, que saca la
+fila *y* el archivo de la nube.
+
+Todo lo que sabe que existe Cloudinary vive en `src/config/cloudinary.js` y
+`src/services/storage.service.js`. Cambiar de proveedor toca esos dos archivos
+y ninguno mas.
+
 ## Problemas comunes
 
 **`Authentication failed against database server`**
@@ -416,8 +473,11 @@ El servicio esta configurado a mano en el dashboard de Render. Cada push a
 | Health Check Path | `/api/health` |
 
 Variables de entorno en Render: `NODE_ENV=production`, `DATABASE_URL` (Internal
-Database URL de la base de Render), `JWT_SECRET`, `JWT_EXPIRES_IN`, `CORS_ORIGIN`.
-**`PORT` no se define**: Render la inyecta sola.
+Database URL de la base de Render), `JWT_SECRET`, `JWT_EXPIRES_IN`, `CORS_ORIGIN`
+y las tres de `CLOUDINARY_*`. **`PORT` no se define**: Render la inyecta sola.
+
+> Las de Cloudinary hay que cargarlas en el dashboard **antes** del primer
+> deploy que incluya el modulo de albums, o el servicio no levanta.
 
 Cosas a tener en cuenta con el plan free:
 
