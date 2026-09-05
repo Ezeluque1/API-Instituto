@@ -87,3 +87,19 @@ export async function actualizar(id, datos) {
     select: contactoPublicSelect,
   });
 }
+
+/**
+ * Elimina fisicamente un mensaje de contacto. No hay soft delete en este
+ * modelo: no tiene sentido "reactivar" un mensaje que ya se descarto.
+ * @throws {ApiError} 404 si no existe
+ */
+export async function eliminar(id) {
+  try {
+    await prisma.mensajeContacto.delete({ where: { id } });
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      throw ApiError.notFound('Mensaje de contacto no encontrado');
+    }
+    throw error;
+  }
+}

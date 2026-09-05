@@ -48,4 +48,12 @@ router.patch(
   controller.actualizar,
 );
 
+router.delete(
+  '/:id',
+  authenticate,
+  authorize('ADMIN'),
+  validate({ params: mensajeContactoIdParamSchema }),
+  controller.eliminar,
+);
+
 export default router;

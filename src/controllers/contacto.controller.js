@@ -26,3 +26,9 @@ export async function obtenerPorId(req, res) {
 export async function actualizar(req, res) {
   res.ok(await contactoService.actualizar(req.params.id, req.body));
 }
+
+/** DELETE /api/contacto/:id - solo ADMIN, eliminacion fisica */
+export async function eliminar(req, res) {
+  await contactoService.eliminar(req.params.id);
+  res.noContent();
+}
