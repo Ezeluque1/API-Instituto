@@ -590,6 +590,129 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+  /carreras/{id}/imagen:
+    put:
+      tags: [Carreras]
+      summary: Carga o reemplaza la imagen de la carrera
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        `multipart/form-data`. El archivo va en el campo **`imagen`**, uno solo.
+
+        Sirve para **cargar y para reemplazar**: si la carrera ya tenía imagen,
+        la nueva la pisa y la anterior se borra del servicio de imágenes. El
+        front no necesita averiguar antes si había una.
+
+        El backend recibe el archivo, lo sube a la nube y guarda en la base
+        **solo la URL**. El archivo nunca toca el disco del servidor.
+
+        | | |
+        |---|---|
+        | Tamaño máximo | 5 MB (`413` si se pasa) |
+        | Archivos | 1 (`400` si vienen más) |
+        | Formatos | JPEG, PNG, WebP, AVIF |
+
+        Devuelve la **carrera entera**, así el front se entera del `imagenUrl`
+        nuevo sin pedirla de nuevo.
+
+        **Las miniaturas no hay que generarlas**: se piden sobre la misma URL
+        insertando transformaciones, igual que en álbumes. Para una tarjeta de
+        400px: `.../upload/w_400,q_auto,f_auto/...`. No consume espacio extra.
+
+        Una carrera **dada de baja devuelve 404**, igual que el `PATCH`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la carrera
+          schema: { type: string }
+          example: clc1a2b3c4d5e6f7g8h9i0j1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [imagen]
+              properties:
+                imagen:
+                  type: string
+                  format: binary
+                  description: Un archivo de imagen, hasta 5 MB.
+            encoding:
+              imagen:
+                contentType: image/jpeg, image/png, image/webp, image/avif
+      responses:
+        "200":
+          description: La carrera con su `imagenUrl` ya actualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Carrera" }
+        "400":
+          description: >-
+            No vino ningún archivo, el campo del formulario no se llama
+            `imagen`, vinieron dos o más, o el formato no está permitido.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: La carrera no existe o está dada de baja.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "502":
+          description: El servicio de imágenes no respondió. No se guardó nada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    delete:
+      tags: [Carreras]
+      summary: Saca la imagen de la carrera
+      description: |
+        **Requiere token con rol ADMIN.**
+
+        Deja `imagenUrl` en `null` y **borra el archivo de la nube**. No se
+        puede deshacer: para cambiarla por otra conviene usar el `PUT`, que
+        hace las dos cosas de una.
+
+        Si la carrera no tiene imagen devuelve 404, igual que
+        `DELETE /albums/{id}/imagenes/{imagenId}`.
+
+        Devuelve la carrera, no un 204, para que el front vea el `imagenUrl` ya
+        en `null`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: cuid de la carrera
+          schema: { type: string }
+          example: clc1a2b3c4d5e6f7g8h9i0j1
+      responses:
+        "200":
+          description: La carrera, ya sin imagen
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Carrera" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: >-
+            La carrera no existe, está dada de baja, o no tiene imagen.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
   /carreras/{id}/definitivo:
     delete:
       tags: [Carreras]
@@ -1985,6 +2108,17 @@ components:
           description: >-
             `false` significa que la carrera esta dada de baja. Por defecto
             las carreras dadas de baja no aparecen en los endpoints publicos.
+
+        imagenUrl:
+          type: ["string", "null"]
+          format: uri
+          description: >-
+            Imagen representativa de la carrera, servida por CDN. `null` si
+            todavia no se le cargo ninguna. Se gestiona con
+            `PUT` y `DELETE /carreras/{id}/imagen`: **no se puede setear desde
+            el POST ni el PATCH**. Para una miniatura, insertar la
+            transformacion en la URL (`/upload/w_400,q_auto,f_auto/`).
+          examples: ["https://res.cloudinary.com/demo/image/upload/v1/instituto/albums/carreras/abc.jpg"]
 
         createdAt:
           type: string
