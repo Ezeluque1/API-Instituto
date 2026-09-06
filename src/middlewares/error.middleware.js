@@ -4,7 +4,6 @@ import { ZodError } from 'zod';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 import {
-  CAMPO_IMAGENES,
   MAX_BYTES_POR_IMAGEN,
   MAX_IMAGENES_POR_REQUEST,
 } from './upload.middleware.js';
@@ -82,9 +81,12 @@ function mapMulterError(error) {
         details: null,
       };
     case 'LIMIT_UNEXPECTED_FILE':
+      // Fallback. Normalmente no se llega aca: upload.middleware.js atrapa este
+      // caso antes y arma el mensaje con el campo que espera ESA ruta. Aca no
+      // se sabe cual era, y hardcodear uno le mentiria a la otra ruta.
       return {
         statusCode: 400,
-        message: `Los archivos tienen que venir en el campo "${CAMPO_IMAGENES}" del formulario`,
+        message: 'El archivo vino en un campo del formulario que la ruta no espera',
         details: { campoRecibido: error.field ?? null },
       };
     default:

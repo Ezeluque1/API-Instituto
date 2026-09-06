@@ -59,12 +59,58 @@ const upload = multer({
   },
 });
 
+/** Nombre del campo del formulario cuando se sube un solo archivo. */
+export const CAMPO_IMAGEN = 'imagen';
+
+/**
+ * Envuelve un middleware de multer para que los errores de campo inesperado
+ * digan algo util.
+ *
+ * multer mete dos situaciones distintas en el mismo codigo LIMIT_UNEXPECTED_FILE
+ * y solo se distinguen mirando `error.field`:
+ *
+ *   - field != el esperado -> el campo del formulario esta mal escrito
+ *   - field == el esperado -> vinieron mas archivos de los que acepta la ruta
+ *
+ * Ademas, el errorHandler no tiene forma de saber que campo esperaba ESTA ruta:
+ * si el mensaje se armara alla, tendria que hardcodear uno solo y le mentiria
+ * a la otra. Por eso el nombre viaja desde aca.
+ */
+function conCampoEsperado(middleware, campoEsperado, maxArchivos) {
+  return (req, res, next) =>
+    middleware(req, res, (error) => {
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_UNEXPECTED_FILE') {
+        const mensaje =
+          error.field === campoEsperado
+            ? `Se esperaba ${maxArchivos === 1 ? 'un solo archivo' : `hasta ${maxArchivos} archivos`} en el campo "${campoEsperado}"`
+            : `El archivo tiene que venir en el campo "${campoEsperado}" del formulario`;
+
+        return next(
+          ApiError.badRequest(mensaje, { campoRecibido: error.field ?? null }),
+        );
+      }
+
+      next(error);
+    });
+}
+
 /**
  * Middleware para POST /albums/:id/imagenes. Deja los archivos en `req.files`.
  */
-export const recibirImagenes = upload.array(
+export const recibirImagenes = conCampoEsperado(
+  upload.array(CAMPO_IMAGENES, MAX_IMAGENES_POR_REQUEST),
   CAMPO_IMAGENES,
   MAX_IMAGENES_POR_REQUEST,
+);
+
+/**
+ * Middleware para PUT /carreras/:id/imagen. Deja el archivo en `req.file`.
+ * Mismos limites y mismo filtro de formatos que el de albums.
+ */
+export const recibirImagenUnica = conCampoEsperado(
+  upload.single(CAMPO_IMAGEN),
+  CAMPO_IMAGEN,
+  1,
 );
 
 export default recibirImagenes;
