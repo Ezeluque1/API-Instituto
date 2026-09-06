@@ -86,6 +86,16 @@ model Carrera {
   // Soft delete / ocultar sin borrar (dar de baja)
   activa         Boolean   @default(true)
 
+  // Imagen representativa de la carrera (tarjeta del listado, pagina de
+  // detalle). Se guardan las dos: la URL es lo que consume el front, y el
+  // publicId es lo unico que permite borrar el archivo de Cloudinary despues.
+  // La URL sola no alcanza. Mismo par que usa Imagen en el modulo de albums.
+  //
+  // Una sola imagen no justifica una tabla aparte: no hay orden, ni portada
+  // que elegir, ni relacion que se consulte por si misma.
+  imagenUrl      String?
+  imagenPublicId String?
+
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

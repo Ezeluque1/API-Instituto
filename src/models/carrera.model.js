@@ -9,6 +9,12 @@ export const carreraPublicSelect = {
   tituloOtorgado: true,
   modalidad: true,
   activa: true,
+
+  // Solo la URL. El imagenPublicId NO se expone: es el identificador interno
+  // de Cloudinary, el front no lo necesita y borrar es cosa de la API.
+  // Mismo criterio que imagenSelect en album.model.js.
+  imagenUrl: true,
+
   createdAt: true,
   updatedAt: true,
 };

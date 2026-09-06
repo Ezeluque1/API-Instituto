@@ -1,6 +1,11 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/ApiError.js';
 import { carreraPublicSelect } from '../models/carrera.model.js';
+import {
+  borrarImagenes,
+  carpetaDeCarreras,
+  subirImagen,
+} from './storage.service.js';
 
 /**
  * Lista las carreras activas.
@@ -264,6 +269,14 @@ export async function darDeBaja(id) {
  * @throws {ApiError} 409 si tiene preinscripciones.
  */
 export async function eliminarDefinitivo(id) {
+  // Se lee el publicId ANTES de borrar la fila: despues del delete ya no hay
+  // de donde sacarlo, y el archivo quedaria en Cloudinary para siempre sin que
+  // nadie sepa que existe.
+  const carrera = await prisma.carrera.findUnique({
+    where: { id },
+    select: { imagenPublicId: true },
+  });
+
   try {
     await prisma.carrera.delete({ where: { id } });
   } catch (error) {
@@ -293,4 +306,109 @@ export async function eliminarDefinitivo(id) {
 
     throw error;
   }
+
+  // Recien aca: si el delete hubiera fallado (409 por preinscripciones), la
+  // carrera sigue viva y su imagen tiene que seguir existiendo.
+  if (carrera?.imagenPublicId) {
+    await borrarImagenes([carrera.imagenPublicId]);
+  }
+}
+// ============================================================
+// IMAGEN DE LA CARRERA
+// ============================================================
+
+/**
+ * Carga o reemplaza la imagen de una carrera.
+ *
+ * Con una sola imagen por carrera, "cargar" y "modificar" son la misma
+ * operacion: se sube la nueva y, si habia una anterior, se borra de la nube.
+ *
+ * El orden importa. Primero se apunta la fila a la imagen nueva y RECIEN
+ * DESPUES se borra la vieja. Al reves, si el update fallara, la carrera
+ * quedaria apuntando a una URL que ya no existe y el usuario veria una foto
+ * rota. Asi, en el peor caso queda un archivo de mas en Cloudinary: invisible
+ * para el usuario y borrable a mano desde el panel.
+ *
+ * @param {string} id
+ * @param {{ buffer: Buffer, originalname: string }} archivo
+ * @throws {ApiError} 404 si la carrera no existe o esta dada de baja
+ * @throws {ApiError} 502 si el servicio de imagenes no responde
+ */
+export async function establecerImagen(id, archivo) {
+  // Se pide con activa: true por el mismo criterio que el PATCH. Una carrera
+  // dada de baja da 404 y no 409 "reactivala primero", porque no existe
+  // endpoint para reactivarla: seria una instruccion imposible de seguir.
+  const carrera = await prisma.carrera.findFirst({
+    where: { id, activa: true },
+    select: { id: true, imagenPublicId: true },
+  });
+
+  if (!carrera) {
+    throw ApiError.notFound('Carrera no encontrada');
+  }
+
+  let subida;
+  try {
+    subida = await subirImagen(archivo.buffer, { carpeta: carpetaDeCarreras() });
+  } catch (error) {
+    throw new ApiError(502, 'No se pudo subir la imagen al servicio de imagenes', {
+      detalle: error?.message ?? null,
+    });
+  }
+
+  let actualizada;
+  try {
+    actualizada = await prisma.carrera.update({
+      where: { id },
+      data: { imagenUrl: subida.url, imagenPublicId: subida.publicId },
+      select: carreraPublicSelect,
+    });
+  } catch (error) {
+    // La fila no quedo apuntando a la imagen nueva: se la saca de Cloudinary
+    // para no dejar un archivo que nadie referencia.
+    await borrarImagenes([subida.publicId]);
+    throw error;
+  }
+
+  // Best-effort: si esto falla, lo que pidio el usuario ya salio bien.
+  // Devolver 500 lo haria reintentar sin necesidad. borrarImagenes loguea lo
+  // que no pudo borrar.
+  if (carrera.imagenPublicId) {
+    await borrarImagenes([carrera.imagenPublicId]);
+  }
+
+  return actualizada;
+}
+
+/**
+ * Saca la imagen de una carrera: la limpia de la fila y borra el archivo.
+ *
+ * @throws {ApiError} 404 si la carrera no existe, esta dada de baja, o no
+ *   tiene imagen. Mismo criterio que DELETE /albums/:id/imagenes/:imagenId.
+ */
+export async function eliminarImagen(id) {
+  const carrera = await prisma.carrera.findFirst({
+    where: { id, activa: true },
+    select: { id: true, imagenPublicId: true },
+  });
+
+  if (!carrera) {
+    throw ApiError.notFound('Carrera no encontrada');
+  }
+
+  if (!carrera.imagenPublicId) {
+    throw ApiError.notFound('Esta carrera no tiene imagen');
+  }
+
+  const actualizada = await prisma.carrera.update({
+    where: { id },
+    data: { imagenUrl: null, imagenPublicId: null },
+    select: carreraPublicSelect,
+  });
+
+  // Igual que arriba: la fila ya no la referencia, que el borrado del archivo
+  // falle no invalida la operacion.
+  await borrarImagenes([carrera.imagenPublicId]);
+
+  return actualizada;
 }

@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import * as controller from '../controllers/carrera.controller.js';
 import { validate } from '../middlewares/validate.middleware.js';
+import { recibirImagenUnica } from '../middlewares/upload.middleware.js';
 import { authenticateOptional, authenticate, authorize } from '../middlewares/auth.middleware.js';
 import {
   carreraIdParamSchema,
@@ -74,4 +75,33 @@ router.delete(
   validate({ params: carreraIdParamSchema }),
   controller.eliminarDefinitivo,
 );
+
+/**
+ * PUT /api/carreras/:id/imagen
+ *
+ * Carga o reemplaza la imagen. multipart/form-data, un archivo en el campo
+ * "imagen".
+ *
+ * El orden de la cadena importa: authenticate y authorize van ANTES que
+ * multer, para que un request sin token no llegue a bufferear 5 MB en memoria
+ * antes de que lo rechacemos. Mismo orden que en album.routes.js.
+ */
+router.put(
+  '/:id/imagen',
+  authenticate,
+  authorize('ADMIN'),
+  validate({ params: carreraIdParamSchema }),
+  recibirImagenUnica,
+  controller.establecerImagen,
+);
+
+/** DELETE /api/carreras/:id/imagen - saca la imagen de la fila y de la nube */
+router.delete(
+  '/:id/imagen',
+  authenticate,
+  authorize('ADMIN'),
+  validate({ params: carreraIdParamSchema }),
+  controller.eliminarImagen,
+);
+
 export default router;

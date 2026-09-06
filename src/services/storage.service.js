@@ -16,6 +16,23 @@ export function carpetaDelAlbum(albumId) {
 }
 
 /**
+ * Carpeta donde viven las imagenes de las carreras.
+ *
+ * Sin subcarpeta por carrera: como hay una sola imagen por carrera, una
+ * carpeta por id seria una carpeta con un unico archivo adentro. Van todas
+ * juntas y Cloudinary asigna el public_id.
+ *
+ * OJO al leerlo en el panel de Cloudinary: el resultado es
+ * "instituto/albums/carreras" y no "instituto/carreras", porque
+ * CLOUDINARY_FOLDER arrastra el nombre de cuando lo unico que subiamos eran
+ * albums. Es raro pero deliberado: renombrar la variable obligaria a tocar el
+ * .env de todo el equipo y el de Render.
+ */
+export function carpetaDeCarreras() {
+  return `${env.CLOUDINARY_FOLDER}/carreras`;
+}
+
+/**
  * Sube un buffer a Cloudinary y devuelve solo lo que guardamos en la base.
  *
  * El SDK expone `upload_stream` con callback (no hay version que devuelva
