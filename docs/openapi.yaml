@@ -48,6 +48,8 @@ tags:
     description: Sedes donde se dictan las carreras
   - name: Carreras
     description: Carreras disponibles en el instituto
+  - name: Informacion Institucional
+    description: Información institucional de cada sede, con sus autoridades
   - name: Usuarios
     description: Autenticación, perfil y administración de usuarios
   - name: Publicaciones
@@ -349,6 +351,85 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Sede" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /sedes/{sedeId}/informacion-institucional:
+    get:
+      tags: [Informacion Institucional]
+      summary: Ver la información institucional de una sede
+      parameters:
+        - name: sedeId
+          in: path
+          required: true
+          schema: { type: string }
+          description: CUID de la sede
+      responses:
+        "200":
+          description: Información institucional de la sede
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InformacionInstitucional" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    post:
+      tags: [Informacion Institucional]
+      summary: Crear la información institucional de una sede
+      description: Solo disponible para administradores.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sedeId
+          in: path
+          required: true
+          schema: { type: string }
+          description: CUID de la sede
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InformacionInstitucionalInput" }
+      responses:
+        "201":
+          description: Información institucional creada correctamente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InformacionInstitucional" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+    put:
+      tags: [Informacion Institucional]
+      summary: Actualizar la información institucional de una sede
+      description: Solo disponible para administradores. Reemplaza el recurso completo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sedeId
+          in: path
+          required: true
+          schema: { type: string }
+          description: CUID de la sede
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InformacionInstitucionalInput" }
+      responses:
+        "200":
+          description: Información institucional actualizada correctamente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InformacionInstitucional" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -2058,6 +2139,90 @@ components:
                 required: [carrera]
                 properties:
                   carrera: { $ref: "#/components/schemas/CarreraResumen" }
+
+    Autoridad:
+      type: object
+      properties:
+        id:
+          type: string
+          description: CUID de la autoridad
+        nombre:
+          type: string
+        cargo:
+          type: string
+        imagen:
+          type: string
+          format: uri
+        orden:
+          type: integer
+        descripcion:
+          type: string
+
+    InformacionInstitucional:
+      type: object
+      properties:
+        id:
+          type: string
+          description: CUID de la información institucional
+        sedeId:
+          type: string
+          description: CUID de la sede a la que pertenece
+        nombre:
+          type: string
+        lema:
+          type: string
+        historia:
+          type: string
+        mision:
+          type: string
+        vision:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        autoridades:
+          type: array
+          items:
+            $ref: "#/components/schemas/Autoridad"
+
+    InformacionInstitucionalInput:
+      type: object
+      required:
+        - nombre
+      properties:
+        nombre:
+          type: string
+          example: Instituto Superior Villa del Rosario
+        lema:
+          type: string
+        historia:
+          type: string
+        mision:
+          type: string
+        vision:
+          type: string
+        autoridades:
+          type: array
+          items:
+            type: object
+            required:
+              - nombre
+              - cargo
+            properties:
+              nombre:
+                type: string
+              cargo:
+                type: string
+              imagen:
+                type: string
+                format: uri
+              orden:
+                type: integer
+              descripcion:
+                type: string
 
     Carrera:
       type: object
