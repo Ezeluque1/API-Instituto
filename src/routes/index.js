@@ -7,6 +7,7 @@ import contactoRoutes from './contacto.routes.js';
 import carreraRoutes from './carrera.routes.js';
 import albumRoutes from './album.routes.js';
 import preinscripcionRoutes from './preinscripcion.routes.js';
+import informacionInstitucionalRoutes from './informacionInstitucional.routes.js';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.get('/health', async (_req, res) => {
 
 // Un router por recurso. Mirar sede.routes.js como referencia.
 router.use('/sedes', sedeRoutes);
+router.use('/sedes', informacionInstitucionalRoutes);
 router.use('/usuarios', usuarioRoutes);
 router.use('/publicaciones', publicacionRoutes);
 router.use('/contacto', contactoRoutes);
