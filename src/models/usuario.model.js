@@ -29,8 +29,13 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'La contraseña es obligatoria'),
 });
 
-// Validación para cerrar sesión.
+// Validación para cerrar sesión o renovar token.
 export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'El refresh token es obligatorio'),
+});
+
+// Validación para renovar el token de acceso.
+export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'El refresh token es obligatorio'),
 });
 
@@ -42,9 +47,33 @@ export const actualizarPerfilSchema = z.object({
   dni: z.string().min(1, 'El DNI es obligatorio').optional(),
 });
 
+// Validación para cambiar la contraseña estando autenticado.
+export const cambiarPasswordSchema = z.object({
+  passwordActual: z.string().min(1, 'La contraseña actual es obligatoria'),
+  nuevaPassword: z.string().min(8, 'La nueva contraseña debe tener al menos 8 caracteres'),
+});
+
+// Validación para listar usuarios con paginación y filtros.
+export const listarUsuariosQuerySchema = z.object({
+  page: z.coerce.number().int().positive('La página debe ser mayor a 0').default(1),
+  limit: z.coerce.number().int().positive('El límite debe ser mayor a 0').max(100, 'El límite máximo es 100').default(10),
+  rol: z.enum(['ADMIN', 'USUARIO']).optional(),
+  activo: z
+    .enum(['true', 'false'])
+    .transform((val) => val === 'true')
+    .optional(),
+});
+
 // Validación para buscar usuarios como administrador.
 export const buscarUsuariosSchema = z.object({
   buscar: z.string().min(1).optional(),
+  page: z.coerce.number().int().positive('La página debe ser mayor a 0').default(1),
+  limit: z.coerce.number().int().positive('El límite debe ser mayor a 0').max(100, 'El límite máximo es 100').default(10),
+  rol: z.enum(['ADMIN', 'USUARIO']).optional(),
+  activo: z
+    .enum(['true', 'false'])
+    .transform((val) => val === 'true')
+    .optional(),
 });
 
 // Validación del ID recibido por URL.
